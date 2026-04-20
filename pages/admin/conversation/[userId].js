@@ -1,13 +1,18 @@
+import { useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '../../../components/AdminLayout';
 import { requireAdmin } from '../../../lib/auth';
-import { getUserById, listRecentMessages } from '../../../lib/firebase';
+import { getUserById, listRecentMessages, getMemory } from '../../../lib/firebase';
 
 export async function getServerSideProps({ req, res, params }) {
   if (!requireAdmin(req, res)) return { props: {} };
   const user = await getUserById(params.userId);
   if (!user) return { notFound: true };
-  const messages = await listRecentMessages(user.id, { limit: 200 });
+  const [messages, memory] = await Promise.all([
+    listRecentMessages(user.id, { limit: 200 }),
+    getMemory(user.id),
+  ]);
+
   return {
     props: {
       user: {
@@ -25,11 +30,34 @@ export async function getServerSideProps({ req, res, params }) {
         surface:    m.surface || '',
         created_at: m.created_at?.toDate?.().toISOString() || null,
       })),
+      memory: memory ? {
+        personality:          memory.personality || {},
+        interests:            memory.interests || [],
+        strengths:            memory.strengths || [],
+        growth_areas:         memory.growth_areas || [],
+        preferences:          memory.preferences || {},
+        open_threads:         memory.open_threads || [],
+        key_facts:            memory.key_facts || [],
+        last_consolidated_at: memory.last_consolidated_at || null,
+        consolidated_message_count: memory.consolidated_message_count || 0,
+      } : null,
     },
   };
 }
 
-export default function Conversation({ user, messages }) {
+export default function Conversation({ user, messages, memory: initialMemory }) {
+  const [memory, setMemory] = useState(initialMemory);
+
+  async function resetMemory() {
+    if (!confirm('Erase all learned memory for this user? The coach will start from scratch.')) return;
+    const res = await fetch('/api/admin/reset-memory', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ user_id: user.id }),
+    });
+    if (res.ok) setMemory(null);
+  }
+
   return (
     <AdminLayout active="/admin/users">
       <div style={{ marginBottom: 16 }}>
@@ -41,7 +69,49 @@ export default function Conversation({ user, messages }) {
         {user.role} · status: {user.status} · streak: {user.streak_count}d · {user.paired ? 'Telegram + Web' : (user.telegram_id?.startsWith('web_') ? 'Web only' : 'Telegram only')}
       </div>
 
-      <div style={{ background: '#fff', borderRadius: 10, padding: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+      <h2 style={{ fontSize: 16, margin: '0 0 10px' }}>🧠 Coach's memory</h2>
+      <div style={{ ...card, marginBottom: 28 }}>
+        {!memory && <em style={{ color: '#999' }}>No memory yet — the brain consolidates after ~6 user turns.</em>}
+        {memory && (
+          <div style={{ display: 'grid', gap: 14, fontSize: 14 }}>
+            <Block title="Personality">
+              {Object.entries(memory.personality).length === 0
+                ? <em style={{ color: '#999' }}>not yet observed</em>
+                : Object.entries(memory.personality).map(([k, v]) => (
+                    <div key={k}><strong style={{ color: '#555' }}>{k.replace(/_/g, ' ')}:</strong> {String(v)}</div>
+                  ))}
+            </Block>
+            <Block title="Strengths" items={memory.strengths} />
+            <Block title="Growth edges" items={memory.growth_areas} />
+            <Block title="Interests" items={memory.interests} />
+            <Block title="Key facts" items={memory.key_facts} />
+            <Block title="Open threads">
+              {memory.open_threads.length === 0
+                ? <em style={{ color: '#999' }}>none</em>
+                : memory.open_threads.map((t, i) => (
+                    <div key={i}>• {t.topic} {t.status && t.status !== 'open' && <span style={{ color: '#999' }}>[{t.status}]</span>}</div>
+                  ))}
+            </Block>
+            <Block title="Preferences">
+              {Object.entries(memory.preferences).length === 0
+                ? <em style={{ color: '#999' }}>not yet observed</em>
+                : Object.entries(memory.preferences).map(([k, v]) => (
+                    <div key={k}><strong style={{ color: '#555' }}>{k.replace(/_/g, ' ')}:</strong> {String(v)}</div>
+                  ))}
+            </Block>
+            <div style={{ color: '#888', fontSize: 12, borderTop: '1px solid #eee', paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+              <span>
+                {memory.last_consolidated_at ? `Last consolidated ${new Date(memory.last_consolidated_at).toLocaleString()}` : 'Not yet consolidated'}
+                {memory.consolidated_message_count ? ` · ${memory.consolidated_message_count} messages seen` : ''}
+              </span>
+              <button onClick={resetMemory} style={resetBtn}>Reset memory</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <h2 style={{ fontSize: 16, margin: '0 0 10px' }}>💬 Conversation</h2>
+      <div style={card}>
         {messages.length === 0 && <em style={{ color: '#999' }}>No messages yet.</em>}
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 10 }}>
@@ -66,3 +136,19 @@ export default function Conversation({ user, messages }) {
     </AdminLayout>
   );
 }
+
+function Block({ title, items, children }) {
+  return (
+    <div>
+      <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: '#888', marginBottom: 4 }}>{title}</div>
+      {children || (
+        items?.length
+          ? <ul style={{ margin: 0, paddingLeft: 18 }}>{items.map((it, i) => <li key={i}>{it}</li>)}</ul>
+          : <em style={{ color: '#999' }}>not yet observed</em>
+      )}
+    </div>
+  );
+}
+
+const card = { background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' };
+const resetBtn = { background: 'transparent', color: '#c00', border: '1px solid #f0caca', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' };
