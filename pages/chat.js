@@ -1,0 +1,479 @@
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import Avatar from '../components/Avatar';
+
+export default function Chat() {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [pairing, setPairing] = useState(false);
+  const [pairCode, setPairCode] = useState('');
+
+  const [attachment, setAttachment] = useState(null); // { dataUrl, media_type, base64 }
+  const [recording, setRecording] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+
+  const scrollRef = useRef(null);
+  const inputRef = useRef(null);
+  const fileRef = useRef(null);
+  const avatarFileRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  // --- Boot session -----------------------------------------------------------
+  useEffect(() => {
+    if (!router.isReady) return;
+    const code = router.query.code;
+    const url = code ? `/api/chat/session?code=${encodeURIComponent(code)}` : '/api/chat/session';
+    fetch(url, { method: code ? 'POST' : 'GET' })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.ok) { setError(d.error || 'Could not start session'); return; }
+        setUser(d.user);
+        setMessages(d.messages || []);
+        setSuggestions(d.suggestions || []);
+        if (code) router.replace('/chat', undefined, { shallow: true });
+      })
+      .catch(() => setError('Network error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
+
+  // --- Detect Web Speech support ---------------------------------------------
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setVoiceSupported(!!SR && !!window.speechSynthesis);
+  }, []);
+
+  // --- Auto scroll ------------------------------------------------------------
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, busy]);
+
+  // --- Auto speak coach responses --------------------------------------------
+  const lastSpokenRef = useRef(0);
+  useEffect(() => {
+    if (!autoSpeak) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    const newAssistant = messages.slice(lastSpokenRef.current).filter(m => m.role === 'assistant');
+    lastSpokenRef.current = messages.length;
+    for (const m of newAssistant) {
+      const text = stripMarkdown(m.text).slice(0, 600);
+      if (!text) continue;
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = user?.preferred_language === 'km' ? 'km-KH' : 'en-US';
+      utter.rate = 1.05;
+      window.speechSynthesis.speak(utter);
+    }
+  }, [messages, autoSpeak, user]);
+
+  function autoGrow(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }
+
+  // --- Send -------------------------------------------------------------------
+  async function send(text, opts = {}) {
+    const t = (text || '').trim();
+    if ((!t && !attachment) || busy) return;
+    if (!opts.autoSend) {
+      setMessages(m => [...m, { role: 'user', text: attachment ? `${t}\n[image attached]` : t }]);
+    }
+    setDraft('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+    setSuggestions([]);
+    setBusy(true);
+    const att = attachment;
+    setAttachment(null);
+    try {
+      const body = { text: t };
+      if (att) body.attachments = [{ media_type: att.media_type, data: att.base64 }];
+      const res = await fetch('/api/chat/send', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!data.ok) { setError(data.error || 'Something went wrong'); return; }
+      const newMsgs = (data.replies || []).map(r => ({ role: 'assistant', text: r }));
+      setMessages(m => [...m, ...newMsgs]);
+      setSuggestions(data.suggestions || []);
+      if (data.user) setUser(data.user);
+    } catch {
+      setError('Network error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // --- Mic (Web Speech API) ---------------------------------------------------
+  function toggleMic() {
+    if (typeof window === 'undefined') return;
+    if (recording) { recognitionRef.current?.stop(); return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setError('Voice input not supported in this browser. Try Chrome or Edge.'); return; }
+    const r = new SR();
+    r.lang = user?.preferred_language === 'km' ? 'km-KH' : 'en-US';
+    r.continuous = false;
+    r.interimResults = true;
+    let finalText = '';
+    r.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      setDraft((finalText + interim).trim());
+      if (inputRef.current) autoGrow(inputRef.current);
+    };
+    r.onerror = (e) => { setRecording(false); if (e.error !== 'aborted' && e.error !== 'no-speech') setError(`Mic: ${e.error}`); };
+    r.onend = () => setRecording(false);
+    recognitionRef.current = r;
+    setRecording(true);
+    r.start();
+  }
+
+  // --- Image attach -----------------------------------------------------------
+  async function handleImagePick(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Please pick an image.'); return; }
+    if (file.size > 6 * 1024 * 1024) { setError('Image too large. Max 6MB.'); return; }
+    const dataUrl = await readAsDataUrl(file);
+    const base64 = dataUrl.split(',')[1];
+    setAttachment({ dataUrl, base64, media_type: file.type });
+  }
+
+  // --- Avatar upload ----------------------------------------------------------
+  async function handleAvatarPick(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !file.type.startsWith('image/')) return;
+    const dataUrl = await readAsDataUrl(file);
+    const resized = await resizeSquare(dataUrl, 96, 0.78);
+    const res = await fetch('/api/chat/avatar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ dataUrl: resized }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setUser(u => ({ ...u, avatar_url: data.avatar_url }));
+    } else {
+      setError(data.error || 'Could not upload avatar');
+    }
+  }
+
+  // --- Pairing ----------------------------------------------------------------
+  async function applyCode() {
+    const c = pairCode.trim().toUpperCase();
+    if (!c) return;
+    const res = await fetch(`/api/chat/session?code=${encodeURIComponent(c)}`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.ok) { setError(data.error || 'Invalid code'); return; }
+    setUser(data.user);
+    setMessages(data.messages || []);
+    setSuggestions([]);
+    setPairing(false);
+    setPairCode('');
+  }
+
+  return (
+    <>
+      <Head>
+        <title>DG AI Coach</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#FAF9F5" />
+      </Head>
+      <div style={s.app}>
+        <header style={s.header}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Avatar kind="coach" size={36} />
+            <div>
+              <div style={s.brand}>DG AI Coach</div>
+              <div style={s.sub}>
+                {user
+                  ? (user.full_name ? `Coaching ${user.full_name.split(' ')[0]}` : 'Welcome')
+                  : 'Connecting…'}
+                {user?.streak_count > 0 && <span style={s.streak}> · 🔥 {user.streak_count}d</span>}
+                {user?.paired_telegram && <span style={s.pairedBadge}> · Telegram linked</span>}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {voiceSupported && (
+              <button
+                style={{ ...s.iconBtn, color: autoSpeak ? '#C96442' : '#7A7670' }}
+                onClick={() => setAutoSpeak(s => !s)}
+                title={autoSpeak ? 'Auto-speak on' : 'Auto-speak off'}
+                aria-label="Toggle auto-speak"
+              >
+                {autoSpeak ? '🔊' : '🔈'}
+              </button>
+            )}
+            <button style={s.linkBtn} onClick={() => setPairing(p => !p)}>
+              {user?.paired_telegram ? '✓ Telegram' : '🔗 Link Telegram'}
+            </button>
+            <button
+              onClick={() => avatarFileRef.current?.click()}
+              style={s.avatarBtn}
+              title="Change your avatar"
+              aria-label="Upload avatar"
+            >
+              <Avatar kind="user" size={32} name={user?.full_name} src={user?.avatar_url} />
+            </button>
+            <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatarPick} style={{ display: 'none' }} />
+          </div>
+        </header>
+
+        {pairing && (
+          <div style={s.pairBox}>
+            <div style={{ fontSize: 13, color: '#5A5A55', marginBottom: 10, lineHeight: 1.5 }}>
+              {user?.paired_telegram
+                ? 'This account is already linked. To switch, paste a new code from /web in @dgaicoach_bot.'
+                : <>Open <a href="https://t.me/dgaicoach_bot" target="_blank" rel="noreferrer" style={s.tgLink}>@dgaicoach_bot</a> in Telegram, send <code style={s.kbd}>/web</code>, then paste the 6-character code below.</>}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={s.codeInput}
+                placeholder="ABC123"
+                value={pairCode}
+                onChange={e => setPairCode(e.target.value.toUpperCase().slice(0, 8))}
+                maxLength={8}
+              />
+              <button style={s.codeBtn} onClick={applyCode}>Link</button>
+            </div>
+          </div>
+        )}
+
+        <div ref={scrollRef} style={s.thread}>
+          {messages.length === 0 && !busy && (
+            <div style={s.empty}>Connecting…</div>
+          )}
+          {messages.map((m, i) => (
+            <MessageRow key={i} role={m.role} text={m.text} userName={user?.full_name} userAvatar={user?.avatar_url} />
+          ))}
+          {busy && (
+            <div style={s.row}>
+              <Avatar kind="coach" size={32} />
+              <div style={s.botBubble}>
+                <span style={s.typing}>
+                  <i style={s.dot} />
+                  <i style={{ ...s.dot, animationDelay: '0.15s' }} />
+                  <i style={{ ...s.dot, animationDelay: '0.3s' }} />
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {!!suggestions.length && !busy && (
+          <div style={s.suggestions}>
+            {suggestions.map((sg, i) => (
+              <button key={i} style={s.suggestion} onClick={() => send(sg)} disabled={busy}>
+                {sg}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {attachment && (
+          <div style={s.attachmentRow}>
+            <img src={attachment.dataUrl} alt="attached" style={s.attachmentThumb} />
+            <span style={{ flex: 1, fontSize: 13, color: '#5A5A55' }}>Image attached — coach will analyse it with your message</span>
+            <button style={s.attachmentClear} onClick={() => setAttachment(null)} aria-label="Remove attachment">✕</button>
+          </div>
+        )}
+
+        <form style={s.composer} onSubmit={e => { e.preventDefault(); send(draft); }}>
+          <button
+            type="button"
+            style={s.iconAction}
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            title="Attach an image"
+            aria-label="Attach image"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 12-7-7-9 9a3 3 0 0 0 4 4l8-8"/></svg>
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" onChange={handleImagePick} style={{ display: 'none' }} />
+
+          {voiceSupported && (
+            <button
+              type="button"
+              onClick={toggleMic}
+              disabled={busy}
+              style={{ ...s.iconAction, background: recording ? '#C96442' : 'transparent', color: recording ? '#fff' : '#5A5A55' }}
+              title={recording ? 'Stop recording' : 'Speak'}
+              aria-label="Voice input"
+            >
+              {recording
+                ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>}
+            </button>
+          )}
+
+          <textarea
+            ref={inputRef}
+            style={s.input}
+            placeholder={recording ? 'Listening…' : 'Message your coach…'}
+            value={draft}
+            onChange={e => { setDraft(e.target.value); autoGrow(e.target); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send(draft);
+              }
+            }}
+            rows={1}
+            disabled={busy}
+          />
+          <button
+            type="submit"
+            style={{ ...s.sendBtn, opacity: busy || (!draft.trim() && !attachment) ? 0.4 : 1 }}
+            disabled={busy || (!draft.trim() && !attachment)}
+            aria-label="Send"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12L19 5L12 19L11 13L5 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </form>
+
+        {error && (
+          <div style={s.errorToast} onClick={() => setError(null)}>{error}</div>
+        )}
+
+        <style jsx global>{`
+          html, body { margin: 0; padding: 0; background: #FAF9F5; }
+          @keyframes pulse { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
+          a { color: #C96442; text-decoration: none; border-bottom: 1px solid rgba(201,100,66,0.3); }
+          a:hover { border-bottom-color: #C96442; }
+          code { background: #F0EEE6; padding: 1px 6px; border-radius: 4px; font-size: 0.92em; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+          ul, ol { margin: 6px 0; padding-left: 22px; }
+          li { margin: 3px 0; }
+          p { margin: 6px 0; }
+          p:first-child { margin-top: 0; } p:last-child { margin-bottom: 0; }
+          strong { color: #2A2925; font-weight: 600; }
+          textarea:focus, input:focus { outline: none; border-color: #C96442; }
+          button { transition: opacity 0.15s, background 0.15s, transform 0.05s, color 0.15s; }
+          button:active:not(:disabled) { transform: scale(0.98); }
+        `}</style>
+      </div>
+    </>
+  );
+}
+
+function MessageRow({ role, text, userName, userAvatar }) {
+  const isUser = role === 'user';
+  return (
+    <div style={{ ...s.row, flexDirection: isUser ? 'row-reverse' : 'row' }}>
+      <Avatar kind={isUser ? 'user' : 'coach'} size={32} name={isUser ? userName : null} src={isUser ? userAvatar : null} />
+      <div style={isUser ? s.userBubble : s.botBubble}>
+        {isUser ? (
+          <div style={{ whiteSpace: 'pre-wrap' }}>{text}</div>
+        ) : (
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{text}</ReactMarkdown>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const mdComponents = {
+  a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}</a>,
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+function resizeSquare(dataUrl, size, quality) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width - min) / 2;
+      const sy = (img.height - min) / 2;
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
+function stripMarkdown(text) {
+  return (text || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^#+\s*/gm, '')
+    .replace(/^[-*]\s*/gm, '')
+    .replace(/_+/g, '');
+}
+
+// ── Anthropic-inspired palette ────────────────────────────────────────────────
+const BG       = '#FAF9F5';
+const SURFACE  = '#FFFFFF';
+const BORDER   = '#EBE8DD';
+const TEXT     = '#2A2925';
+const MUTED    = '#7A7670';
+const ACCENT   = '#C96442';
+
+const s = {
+  app:        { display: 'flex', flexDirection: 'column', height: '100dvh', background: BG, fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Inter", sans-serif', color: TEXT, WebkitFontSmoothing: 'antialiased' },
+  header:     { padding: '10px 16px', background: BG, borderBottom: `1px solid ${BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 5, gap: 8 },
+  brand:      { fontWeight: 600, fontSize: 16, letterSpacing: -0.2 },
+  sub:        { color: MUTED, fontSize: 12, marginTop: 2 },
+  streak:     { color: '#D97706', fontWeight: 600 },
+  pairedBadge:{ color: '#059669', fontWeight: 500 },
+  iconBtn:    { background: 'transparent', border: 'none', padding: 6, borderRadius: 8, cursor: 'pointer', fontSize: 16, lineHeight: 1 },
+  avatarBtn:  { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '50%' },
+  linkBtn:    { background: SURFACE, border: `1px solid ${BORDER}`, padding: '7px 12px', borderRadius: 999, fontSize: 12, cursor: 'pointer', color: TEXT, fontWeight: 500 },
+  pairBox:    { padding: 14, background: '#FFFAF0', borderBottom: `1px solid ${BORDER}` },
+  tgLink:     { color: ACCENT, fontWeight: 500 },
+  kbd:        { background: '#F0EEE6', padding: '2px 6px', borderRadius: 4, fontSize: '0.92em', fontFamily: 'ui-monospace, monospace' },
+  codeInput:  { flex: 1, padding: '10px 14px', border: `1px solid ${BORDER}`, borderRadius: 10, fontSize: 14, letterSpacing: 3, textAlign: 'center', textTransform: 'uppercase', background: SURFACE, fontFamily: 'ui-monospace, monospace' },
+  codeBtn:    { padding: '10px 18px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer' },
+  thread:     { flex: 1, overflowY: 'auto', padding: '20px 16px 8px', maxWidth: 760, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
+  empty:      { textAlign: 'center', color: MUTED, marginTop: 60, fontSize: 14 },
+  row:        { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
+  userBubble: { maxWidth: 'min(78%, 540px)', padding: '10px 14px', borderRadius: '14px 14px 4px 14px', background: TEXT, color: '#fff', fontSize: 15, lineHeight: 1.5, wordBreak: 'break-word' },
+  botBubble:  { maxWidth: 'min(85%, 600px)', padding: '12px 16px', borderRadius: '4px 14px 14px 14px', background: SURFACE, color: TEXT, fontSize: 15, lineHeight: 1.55, wordBreak: 'break-word', border: `1px solid ${BORDER}` },
+  typing:     { display: 'inline-flex', gap: 4, alignItems: 'center', height: 18 },
+  dot:        { width: 6, height: 6, borderRadius: '50%', background: MUTED, animation: 'pulse 1.2s infinite ease-in-out' },
+  suggestions:{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '4px 16px 12px', maxWidth: 760, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
+  suggestion: { background: SURFACE, border: `1px solid ${BORDER}`, padding: '8px 14px', borderRadius: 999, fontSize: 13, cursor: 'pointer', color: TEXT, fontWeight: 500 },
+  attachmentRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', maxWidth: 760, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
+  attachmentThumb: { width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1px solid ${BORDER}` },
+  attachmentClear: { background: 'transparent', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 18, padding: 4 },
+  composer:   { display: 'flex', padding: '10px 16px 16px', background: BG, borderTop: `1px solid ${BORDER}`, gap: 6, alignItems: 'flex-end', maxWidth: 760, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
+  iconAction: { background: 'transparent', border: `1px solid ${BORDER}`, width: 40, height: 40, borderRadius: '50%', cursor: 'pointer', color: '#5A5A55', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  input:      { flex: 1, padding: '12px 16px', border: `1px solid ${BORDER}`, borderRadius: 18, fontSize: 15, outline: 'none', resize: 'none', maxHeight: 160, fontFamily: 'inherit', lineHeight: 1.5, background: SURFACE, color: TEXT },
+  sendBtn:    { background: ACCENT, color: '#fff', border: 'none', width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  errorToast: { position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)', background: '#DC2626', color: '#fff', padding: '10px 16px', borderRadius: 8, fontSize: 13, cursor: 'pointer', zIndex: 10 },
+};
