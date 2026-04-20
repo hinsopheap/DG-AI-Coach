@@ -6,7 +6,11 @@ import {
   logActivity,
   createPairingCode,
   listRecentMessages,
+  listSubmissionsForUser,
+  listTasksForPath,
+  getPath,
 } from '../../../../lib/firebase.js';
+import { dashboardSnapshot, ACHIEVEMENTS } from '../../../../lib/gamification.js';
 import {
   sendMessage,
   sendChatAction,
@@ -74,6 +78,8 @@ async function routeUpdate(update) {
   if (text === '/progress') return sendMessage(chatId, await formatProgress(user)).then(() => {});
   if (text === '/practice') return sendPracticeMenu(chatId, user);
   if (text === '/history')  return sendHistory(chatId, user);
+  if (text === '/dashboard')return sendDashboard(chatId, user);
+  if (text === '/profile')  return sendProfile(chatId, user);
   if (text === '/web' || text === '/link') return sendPairingCode(chatId, user, telegramUser);
   if (text === '/summary') {
     const { buildAndSendSummaryForUser } = await import('../../../../lib/summary.js');
@@ -116,6 +122,8 @@ async function handleCallback(cb) {
   if (data === '/progress') return sendMessage(chatId, await formatProgress(user));
   if (data === '/practice') return sendPracticeMenu(chatId, user);
   if (data === '/history')  return sendHistory(chatId, user);
+  if (data === '/dashboard')return sendDashboard(chatId, user);
+  if (data === '/profile')  return sendProfile(chatId, user);
   if (data === '/web')      return sendPairingCode(chatId, user, telegramUser);
 }
 
@@ -217,6 +225,98 @@ Tell me what you're working on and I'll write you a starter prompt to paste into
   });
 }
 
+async function sendDashboard(chatId, user) {
+  const snap = dashboardSnapshot(user);
+  const path = user.learning_path_id ? await getPath(user.learning_path_id) : null;
+  const [submissions, tasks] = await Promise.all([
+    listSubmissionsForUser(user.id, { limit: 100 }),
+    user.learning_path_id ? listTasksForPath(user.learning_path_id) : [],
+  ]);
+  const scores = submissions.map(s => s.total_score).filter(n => typeof n === 'number');
+  const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : null;
+
+  const bar = renderBar(snap.progress, 14);
+  const levelEmoji = ['', '🌱', '🌿', '🌳', '⭐', '✨', '🚀', '🏔', '👑'][snap.level] || '👑';
+
+  const achLines = snap.achievements.length
+    ? snap.achievements.slice(0, 6).map(a => `${a.icon || '🏅'} ${a.title}`).join('\n')
+    : '_none yet — first is unlocked after onboarding_';
+
+  const awardLines = snap.awards.length
+    ? snap.awards.slice(0, 3).map(a => `${a.icon || '🎖️'} *${a.title}* — ${a.reason || a.desc || ''}`).join('\n')
+    : '';
+
+  const lines = [
+    `${levelEmoji} *Level ${snap.level} · ${snap.level_name}*`,
+    ``,
+    `*XP:* ${snap.xp.toLocaleString()} / ${snap.level_ceil.toLocaleString()}`,
+    `${bar} ${Math.round(snap.progress * 100)}%`,
+    snap.level_to_next > 0 ? `_${snap.level_to_next} XP to Level ${snap.level + 1}_` : '',
+    ``,
+    `🔥 *Streak:* ${snap.streak_count} day${snap.streak_count === 1 ? '' : 's'}`,
+    `✅ *Tasks:* ${submissions.length}${tasks.length ? ` / ${tasks.length}` : ''}`,
+    avg != null ? `📈 *Avg score:* ${avg}/10` : '',
+    path ? `📚 *Path:* ${path.title}` : '',
+    ``,
+    `🏆 *Achievements* (${snap.unlocked_count}/${snap.total_achievements})`,
+    achLines,
+    awardLines ? `\n🎖️ *Recent awards*\n${awardLines}` : '',
+  ].filter(Boolean).join('\n');
+
+  const base = process.env.PUBLIC_BASE_URL || 'https://dg-ai-coach-eta.vercel.app';
+  return sendMessage(chatId, lines, {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "📚 Today's task", callback_data: '/today' }, { text: '🎯 Practice', callback_data: '/practice' }],
+        [{ text: '🌐 Open full dashboard', url: `${base}/dashboard` }],
+      ],
+    },
+  });
+}
+
+function renderBar(progress, width = 12) {
+  const filled = Math.round(progress * width);
+  return '█'.repeat(filled) + '░'.repeat(width - filled);
+}
+
+async function sendProfile(chatId, user) {
+  const pairedWeb = !!user.web_session_id;
+  const lines = [
+    `👤 *Your profile*`,
+    ``,
+    `*Name:* ${user.full_name || '—'}`,
+    `*Role:* ${roleLabel(user.role)}`,
+    `*Language:* ${user.preferred_language === 'km' ? '🇰🇭 Khmer' : '🇬🇧 English'}`,
+    `*Goal:* ${user.goal || '—'}`,
+    ``,
+    `*Linked surfaces:*`,
+    `${pairedWeb ? '✅' : '⬜'} Web chat`,
+    `✅ Telegram (this account)`,
+    ``,
+    `_Edit in the web profile — tap the button below._`,
+  ].join('\n');
+
+  const base = process.env.PUBLIC_BASE_URL || 'https://dg-ai-coach-eta.vercel.app';
+  return sendMessage(chatId, lines, {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '⚙️ Edit profile on web', url: `${base}/profile` }],
+        [{ text: '🔗 Link web chat', callback_data: '/web' }],
+      ],
+    },
+  });
+}
+
+function roleLabel(role) {
+  return {
+    ceo:            'CEO / Founder',
+    gm:             'GM / Director',
+    senior_manager: 'Senior Manager',
+    team_leader:    'Team Leader',
+    professional:   'Professional',
+  }[role] || '—';
+}
+
 async function sendHistory(chatId, user) {
   const messages = await listRecentMessages(user.id, { limit: 10 });
   if (!messages.length) {
@@ -234,6 +334,8 @@ async function sendHistory(chatId, user) {
 function helpText(user) {
   const en = `*DG AI Coach — commands*
 /today — get today's lesson and task
+/dashboard — your level, XP, streak, achievements
+/profile — view and edit your profile
 /progress — see your streak and scores
 /history — show recent coaching messages
 /practice — open a DG Academy practice tool
@@ -244,6 +346,8 @@ function helpText(user) {
 Or just chat freely — ask anything, share an attempt at a task, or send a screenshot of work in progress.`;
   const km = `*DG AI Coach — ពាក្យបញ្ជា*
 /today — ទទួលបានកិច្ចការថ្ងៃនេះ
+/dashboard — កម្រិត, XP, និងសមិទ្ធផល
+/profile — មើល​និង​កែ​ប្រវត្តិរូប
 /progress — មើលលទ្ធផលរបស់អ្នក
 /history — បង្ហាញសារថ្មីៗ
 /practice — បើកឧបករណ៍ហាត់សម

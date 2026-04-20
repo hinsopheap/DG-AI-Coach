@@ -8,14 +8,16 @@ const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!TOKEN) { console.error('TELEGRAM_BOT_TOKEN missing'); process.exit(1); }
 
 const COMMANDS = [
-  { command: 'today',    description: '📚 Get today\'s 5-minute task' },
-  { command: 'progress', description: '📈 See your streak and scores' },
-  { command: 'history',  description: '🕐 Show your recent coaching messages' },
-  { command: 'web',      description: '💻 Open the web chat (linked to this account)' },
-  { command: 'summary',  description: '🗓 This week\'s reflection' },
-  { command: 'practice', description: '🎯 Open a DG Academy practice tool' },
-  { command: 'help',     description: '❓ How to use DG AI Coach' },
-  { command: 'start',    description: '🔄 Restart onboarding' },
+  { command: 'today',     description: '📚 Get today\'s 5-minute task' },
+  { command: 'dashboard', description: '🏆 Level, XP, streak, achievements' },
+  { command: 'profile',   description: '👤 View and edit your profile' },
+  { command: 'progress',  description: '📈 See your streak and scores' },
+  { command: 'history',   description: '🕐 Show your recent coaching messages' },
+  { command: 'practice',  description: '🎯 Open a DG Academy practice tool' },
+  { command: 'web',       description: '💻 Open the web chat (linked to this account)' },
+  { command: 'summary',   description: '🗓 This week\'s reflection' },
+  { command: 'help',      description: '❓ How to use DG AI Coach' },
+  { command: 'start',     description: '🔄 Restart onboarding' },
 ];
 
 async function call(method, body) {

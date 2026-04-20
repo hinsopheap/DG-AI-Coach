@@ -11,6 +11,7 @@ import {
   updateUser,
 } from '../../../lib/firebase.js';
 import { getSessionId, newSessionId, sessionCookie } from '../../../lib/web-session.js';
+import { levelInfo } from '../../../lib/gamification.js';
 
 export default async function handler(req, res) {
   const code = (req.query.code || req.body?.code || '').toString().trim().toUpperCase();
@@ -68,6 +69,7 @@ export default async function handler(req, res) {
       learning_path:     path?.title || null,
       paired_telegram:   user.telegram_id && !user.telegram_id.startsWith('web_'),
       avatar_url:        user.avatar_url || null,
+      xp_level:          levelInfo(user.xp || 0),
     },
     messages: messages.map(m => ({
       role: m.role,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Avatar from '../components/Avatar';
@@ -198,21 +199,31 @@ export default function Chat() {
       </Head>
       <div style={s.app}>
         <header style={s.header}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <Avatar kind="coach" size={36} />
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={s.brand}>DG AI Coach</div>
               <div style={s.sub}>
                 {user
-                  ? (user.full_name ? `Coaching ${user.full_name.split(' ')[0]}` : 'Welcome')
+                  ? (user.full_name ? `${user.full_name.split(' ')[0]}` : 'Welcome')
                   : 'Connecting…'}
                 {user?.streak_count > 0 && <span style={s.streak}> · 🔥 {user.streak_count}d</span>}
-                {user?.paired_telegram && <span style={s.pairedBadge}> · Telegram linked</span>}
+                {user?.paired_telegram && <span style={s.pairedBadge}> · linked</span>}
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {user?.xp_level && (
+            <Link href="/dashboard" style={s.levelPill} title={`Level ${user.xp_level.level} · ${user.xp_level.xp} XP`}>
+              <span style={s.levelPillLevel}>L{user.xp_level.level}</span>
+              <div style={s.levelPillBar}>
+                <div style={{ ...s.levelPillFill, width: `${Math.round((user.xp_level.progress || 0) * 100)}%` }} />
+              </div>
+              <span style={s.levelPillXP}>{user.xp_level.xp} XP</span>
+            </Link>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {voiceSupported && (
               <button
                 style={{ ...s.iconBtn, color: autoSpeak ? '#C96442' : '#7A7670' }}
@@ -223,8 +234,10 @@ export default function Chat() {
                 {autoSpeak ? '🔊' : '🔈'}
               </button>
             )}
+            <Link href="/dashboard" style={s.headerNav} title="Dashboard">📊</Link>
+            <Link href="/profile" style={s.headerNav} title="Profile">⚙️</Link>
             <button style={s.linkBtn} onClick={() => setPairing(p => !p)}>
-              {user?.paired_telegram ? '✓ Telegram' : '🔗 Link Telegram'}
+              {user?.paired_telegram ? '✓' : '🔗'}
             </button>
             <button
               onClick={() => avatarFileRef.current?.click()}
@@ -452,8 +465,14 @@ const s = {
   streak:     { color: '#D97706', fontWeight: 600 },
   pairedBadge:{ color: '#059669', fontWeight: 500 },
   iconBtn:    { background: 'transparent', border: 'none', padding: 6, borderRadius: 8, cursor: 'pointer', fontSize: 16, lineHeight: 1 },
+  headerNav:  { background: 'transparent', border: 'none', padding: 6, borderRadius: 8, cursor: 'pointer', fontSize: 16, lineHeight: 1, textDecoration: 'none' },
   avatarBtn:  { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '50%' },
-  linkBtn:    { background: SURFACE, border: `1px solid ${BORDER}`, padding: '7px 12px', borderRadius: 999, fontSize: 12, cursor: 'pointer', color: TEXT, fontWeight: 500 },
+  linkBtn:    { background: SURFACE, border: `1px solid ${BORDER}`, padding: '6px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', color: TEXT, fontWeight: 500 },
+  levelPill:  { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 999, textDecoration: 'none', color: TEXT, cursor: 'pointer' },
+  levelPillLevel: { fontSize: 11, fontWeight: 700, color: ACCENT, letterSpacing: 0.5 },
+  levelPillBar: { width: 60, height: 6, background: '#F3F0E7', borderRadius: 999, overflow: 'hidden' },
+  levelPillFill:{ height: '100%', background: `linear-gradient(90deg, ${ACCENT}, #D97757)`, transition: 'width 0.5s' },
+  levelPillXP:  { fontSize: 11, color: MUTED, fontFamily: 'ui-monospace, monospace' },
   pairBox:    { padding: 14, background: '#FFFAF0', borderBottom: `1px solid ${BORDER}` },
   tgLink:     { color: ACCENT, fontWeight: 500 },
   kbd:        { background: '#F0EEE6', padding: '2px 6px', borderRadius: 4, fontSize: '0.92em', fontFamily: 'ui-monospace, monospace' },
