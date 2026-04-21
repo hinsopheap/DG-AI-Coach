@@ -74,8 +74,9 @@ export default function Home() {
                 Co-founder and Executive Director of DG Academy / Cambodia AI Group. Designs AI-native operating systems for leaders and their teams. This coach is his playbook, packaged.
               </p>
               <div style={s.coachLinks}>
+                <a href="https://sopheap.angkorgate.ai" target="_blank" rel="noreferrer" style={s.coachLink}>Profile</a>
+                <a href="https://ai.thedgacademy.org" target="_blank" rel="noreferrer" style={s.coachLink}>DG Academy</a>
                 <a href="https://t.me/dgaicoach_bot" target="_blank" rel="noreferrer" style={s.coachLink}>Telegram</a>
-                <a href="https://ai.angkorgate.ai" target="_blank" rel="noreferrer" style={s.coachLink}>DG Academy</a>
               </div>
             </div>
           </div>
@@ -97,13 +98,17 @@ export default function Home() {
           <Feature eyebrow="02" title="Opinionated, not hedgy"
             body="No three-option lists when you asked for an answer. The coach forms a point of view, states it, and moves you toward the next action in five minutes." />
           <Feature eyebrow="03" title="Practice, not theory"
-            body={<>Direct links to <a href="https://dgchat.angkorgate.ai" target="_blank" rel="noreferrer">DG Chat</a>, <a href="https://aieureka.angkorgate.ai" target="_blank" rel="noreferrer">AI Eureka</a>, and <a href="https://ai.angkorgate.ai" target="_blank" rel="noreferrer">the AI portal</a> — with specific prompts to paste.</>} />
+            body={<>Direct links to <a href="https://ai.thedgacademy.org" target="_blank" rel="noreferrer">the DG Academy AI portal</a>, <a href="https://dgchat.angkorgate.ai" target="_blank" rel="noreferrer">DG Chat</a>, and <a href="https://aieureka.angkorgate.ai" target="_blank" rel="noreferrer">AI Eureka</a> — with the exact prompts to paste.</>} />
           <Feature eyebrow="04" title="XP, levels, achievements"
             body="Earn XP on every submission, streak bonuses, and rare coach-awarded prizes for sharp moments. Watch your level climb as the habit compounds." />
           <Feature eyebrow="05" title="Multimodal"
             body="Send a screenshot, a photo of your whiteboard, or a voice note. The coach sees and responds to images in both web and Telegram." />
           <Feature eyebrow="06" title="One coach, two surfaces"
             body={<>Send <code>/web</code> in the Telegram bot to get a code. Paste it in the web chat. Same memory, same progress, same XP.</>} />
+          <Feature eyebrow="07" title="Responsible by default"
+            body="Privacy, bias, and source-verification baked in. The coach names what data shouldn't go into a public AI tool, when to disclose AI use, and when a human has to stay accountable." />
+          <Feature eyebrow="08" title="Six domain tracks"
+            body="Communication, Decisions, Operations, People, Strategy, Responsible AI — plus role-based starter paths for CEOs, GMs, and professionals." />
         </section>
 
         {/* ───── CTA ───── */}

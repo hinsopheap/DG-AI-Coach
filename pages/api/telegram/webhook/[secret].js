@@ -210,16 +210,19 @@ async function sendPracticeMenu(chatId, user) {
 
 Pick one and I'll suggest a specific prompt to try:
 
+• [DG Academy AI portal](https://ai.thedgacademy.org) — the full program hub
 • [DG Chat](https://dgchat.angkorgate.ai) — drop-in AI for daily work
-• [AI Eureka](https://aieureka.angkorgate.ai) — guided experiments and templates
-• [AI portal](https://ai.angkorgate.ai) — landing hub
+• [AI Eureka](https://aieureka.angkorgate.ai) — guided experiments and prompt patterns
+
+Want to know about the coach? See [Hin Sopheap](https://sopheap.angkorgate.ai).
 
 Tell me what you're working on and I'll write you a starter prompt to paste into one of these.`;
   await sendMessage(chatId, text, {
     reply_markup: {
       inline_keyboard: [
+        [{ text: '🌐 AI portal', url: 'https://ai.thedgacademy.org' }],
         [{ text: '🤖 DG Chat', url: 'https://dgchat.angkorgate.ai' }, { text: '💡 AI Eureka', url: 'https://aieureka.angkorgate.ai' }],
-        [{ text: '🌐 AI portal', url: 'https://ai.angkorgate.ai' }],
+        [{ text: '👤 About your coach', url: 'https://sopheap.angkorgate.ai' }],
       ],
     },
   });
