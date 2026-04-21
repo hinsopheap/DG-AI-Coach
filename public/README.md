@@ -13,3 +13,4 @@ Recommended specs:
 
 Drop the file in, redeploy, and it will render on the landing page and
 optionally in the chat interface as the coach avatar.
+<img width="640" height="640" alt="sopheap123" src="https://github.com/user-attachments/assets/4ff547b4-78c2-4c25-bb20-204b721c332b" />
