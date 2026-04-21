@@ -31,6 +31,9 @@ export default function DashboardShell({ user, active, children, showLevel = tru
           <NavLink href="/chat" active={active === 'chat'}>Chat</NavLink>
           <NavLink href="/dashboard" active={active === 'dashboard'}>Dashboard</NavLink>
           <NavLink href="/profile" active={active === 'profile'}>Profile</NavLink>
+          {user?.has_account && (
+            <a href="/api/auth/signout" style={{ ...s.navLink, color: '#9B9690' }}>Sign out</a>
+          )}
         </nav>
       </header>
 

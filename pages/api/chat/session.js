@@ -70,6 +70,8 @@ export default async function handler(req, res) {
       paired_telegram:   user.telegram_id && !user.telegram_id.startsWith('web_'),
       avatar_url:        user.avatar_url || null,
       xp_level:          levelInfo(user.xp || 0),
+      has_account:       !!user.email,
+      email:             user.email || null,
     },
     messages: messages.map(m => ({
       role: m.role,
