@@ -263,7 +263,7 @@ async function sendDashboard(chatId, user) {
     awardLines ? `\n🎖️ *Recent awards*\n${awardLines}` : '',
   ].filter(Boolean).join('\n');
 
-  const base = process.env.PUBLIC_BASE_URL || 'https://dg-ai-coach-eta.vercel.app';
+  const base = process.env.PUBLIC_BASE_URL || 'https://dgaicoach.vercel.app';
   return sendMessage(chatId, lines, {
     reply_markup: {
       inline_keyboard: [
@@ -296,7 +296,7 @@ async function sendProfile(chatId, user) {
     `_Edit in the web profile — tap the button below._`,
   ].join('\n');
 
-  const base = process.env.PUBLIC_BASE_URL || 'https://dg-ai-coach-eta.vercel.app';
+  const base = process.env.PUBLIC_BASE_URL || 'https://dgaicoach.vercel.app';
   return sendMessage(chatId, lines, {
     reply_markup: {
       inline_keyboard: [

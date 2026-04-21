@@ -39,7 +39,7 @@ async function call(method, body) {
   console.log('✓ Set menu button to commands');
 
   await call('setMyDescription', {
-    description: 'A senior AI coach for working professionals. Five focused minutes a day to apply frontier AI to your real work — paired with the web chat at dg-ai-coach-eta.vercel.app.',
+    description: 'A senior AI coach for working professionals. Five focused minutes a day to apply frontier AI to your real work — paired with the web chat at dgaicoach.vercel.app.',
   });
   console.log('✓ Set bot description');
 

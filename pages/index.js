@@ -1,11 +1,8 @@
-import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import Avatar from '../components/Avatar';
 
 export default function Home() {
-  const [photoOk, setPhotoOk] = useState(true);
-
   return (
     <>
       <Head>
@@ -57,23 +54,24 @@ export default function Home() {
 
           <div style={s.coachCard}>
             <div style={s.photoFrame}>
-              {photoOk ? (
-                <img
-                  src="/coach.jpg"
-                  alt="Hin Sopheap"
-                  style={s.photo}
-                  onError={() => setPhotoOk(false)}
-                />
-              ) : (
-                <div style={s.photoFallback}>HS</div>
-              )}
+              <img
+                src="/coach.jpg"
+                alt="Hin Sopheap"
+                style={s.photo}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const fb = e.currentTarget.nextElementSibling;
+                  if (fb) fb.style.display = 'flex';
+                }}
+              />
+              <div style={{ ...s.photoFallback, display: 'none' }}>HS</div>
             </div>
             <div style={s.coachMeta}>
               <div style={s.coachLabel}>Your coach</div>
               <div style={s.coachName}>Hin Sopheap</div>
               <div style={s.coachTitle}>AI &amp; Strategy Architect</div>
               <p style={s.coachBio}>
-                Co-Founder &amp; Chairman of Cambodia AI Group. Designs AI-native operating systems for leaders and their teams. This coach is his playbook, packaged.
+                Co-founder and Executive Director of DG Academy / Cambodia AI Group. Designs AI-native operating systems for leaders and their teams. This coach is his playbook, packaged.
               </p>
               <div style={s.coachLinks}>
                 <a href="https://t.me/dgaicoach_bot" target="_blank" rel="noreferrer" style={s.coachLink}>Telegram</a>
@@ -194,7 +192,7 @@ const s = {
   coachCard:   { flex: '0 0 340px', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 24, padding: 20, boxShadow: '0 2px 20px rgba(201,100,66,0.06)' },
   photoFrame:  { width: '100%', aspectRatio: '1/1', borderRadius: 18, overflow: 'hidden', background: '#F3F0E7', marginBottom: 18, position: 'relative' },
   photo:       { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  photoFallback: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, fontWeight: 600, color: '#fff', background: `linear-gradient(135deg, ${ACCENT} 0%, #D97757 50%, #E89A6F 100%)`, letterSpacing: -2 },
+  photoFallback: { position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 96, fontWeight: 600, color: '#fff', background: `linear-gradient(135deg, ${ACCENT} 0%, #D97757 50%, #E89A6F 100%)`, letterSpacing: -2 },
   coachMeta:   { padding: '0 4px' },
   coachLabel:  { fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: ACCENT, fontWeight: 700, marginBottom: 6 },
   coachName:   { fontSize: 22, fontWeight: 700, letterSpacing: -0.4, color: TEXT },
