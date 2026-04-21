@@ -236,6 +236,7 @@ export default function Chat() {
             )}
             <Link href="/dashboard" style={s.headerNav} title="Dashboard">📊</Link>
             <Link href="/profile" style={s.headerNav} title="Profile">⚙️</Link>
+            <Link href="/end-session" style={s.headerNav} title="End session">👋</Link>
             <button style={s.linkBtn} onClick={() => setPairing(p => !p)}>
               {user?.paired_telegram ? '✓' : '🔗'}
             </button>
