@@ -21,9 +21,10 @@ export default async function handler(req, res) {
     farewell,
     stats:     sessionStats(user),
     user: {
-      full_name:   user.full_name || '',
-      avatar_url:  user.avatar_url || null,
-      has_account: !!user.email,
+      full_name:          user.full_name || '',
+      avatar_url:         user.avatar_url || null,
+      has_account:        !!user.email,
+      preferred_language: user.preferred_language || 'en',
     },
   });
 }

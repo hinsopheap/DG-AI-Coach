@@ -93,6 +93,7 @@ async function routeUpdate(update) {
 
   // Commands ----------------------------------------------------------------
   if (text === '/help')     return sendMessage(chatId, helpText(user), removeKeyboard()).then(() => {});
+  if (text === '/language' || text === '/lang') return sendLanguagePicker(chatId);
   if (text === '/today')    return deliverTaskToUser(user).then(() => {});
   if (text === '/progress') return sendMessage(chatId, await formatProgress(user)).then(() => {});
   if (text === '/practice') return sendPracticeMenu(chatId, user);
@@ -133,6 +134,15 @@ async function handleCallback(cb) {
   if (!user) return;
 
   if (data === '/today')    return deliverTaskToUser(user).then(() => {});
+  if (data === 'lang:en' || data === 'lang:km') {
+    const { updateUser } = await import('../../../../lib/firebase.js');
+    const next = data === 'lang:km' ? 'km' : 'en';
+    await updateUser(user.id, { preferred_language: next });
+    const msg = next === 'km'
+      ? '✅ ភាសាបានកំណត់ជាខ្មែរ។ ខ្ញុំនឹងឆ្លើយជាភាសាខ្មែរពីពេលនេះតទៅ។'
+      : "✅ Language set to English. I'll reply in English from now on.";
+    return sendMessage(chatId, msg);
+  }
   if (data === '/progress') return sendMessage(chatId, await formatProgress(user));
   if (data === '/practice') return sendPracticeMenu(chatId, user);
   if (data === '/history')  return sendHistory(chatId, user);
@@ -272,6 +282,17 @@ async function sendPairingCode(chatId, user, telegramUser) {
     `🔗 *Open DG AI Coach in your browser*\n\nCode: \`${code}\`\nLink: ${url}\n\nValid for 15 minutes. Once linked, both surfaces share the same conversation.`,
   );
   await logActivity(user.id, 'web_pairing_code_issued');
+}
+
+async function sendLanguagePicker(chatId) {
+  return sendMessage(chatId, '🌐 Pick your language.  ·  ជ្រើសរើសភាសារបស់អ្នក។', {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: '🇬🇧 English',  callback_data: 'lang:en' },
+        { text: '🇰🇭 ខ្មែរ',     callback_data: 'lang:km' },
+      ]],
+    },
+  });
 }
 
 async function sendPracticeMenu(chatId, user) {
@@ -414,6 +435,7 @@ function helpText(user) {
 /summary — get your weekly reflection
 /web — open the web chat (Telegram → web direction)
 /link CODE — claim a code from the web (web → Telegram direction)
+/language — switch between English and Khmer
 /help — show this message
 
 Or just chat freely — ask anything, share an attempt at a task, or send a screenshot of work in progress.`;
@@ -426,6 +448,7 @@ Or just chat freely — ask anything, share an attempt at a task, or send a scre
 /practice — បើកឧបករណ៍ហាត់សម
 /summary — របាយការណ៍ប្រចាំសប្ដាហ៍
 /web — បើកគេហទំព័រ
+/language — ប្ដូរភាសាអង់គ្លេស/ខ្មែរ
 /help — បង្ហាញសារនេះ`;
   return user.preferred_language === 'km' ? km : en;
 }

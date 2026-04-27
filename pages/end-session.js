@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import Avatar from '../components/Avatar';
+import { t } from '../lib/i18n';
 
 export default function EndSession() {
   const [data, setData] = useState(null);
@@ -54,14 +55,14 @@ export default function EndSession() {
 
               <div style={s.body}>
                 {data.farewell.covered && <p style={s.paragraph}>{data.farewell.covered}</p>}
-                {data.farewell.strength && <p style={s.paragraphAccent}><strong>What you did well today.</strong> {data.farewell.strength}</p>}
-                {data.farewell.carry_home && <p style={s.paragraph}><strong>Before next time.</strong> {data.farewell.carry_home}</p>}
+                {data.farewell.strength && <p style={s.paragraphAccent}><strong>{t(data.user.preferred_language, 'end.what_did_well')}</strong> {data.farewell.strength}</p>}
+                {data.farewell.carry_home && <p style={s.paragraph}><strong>{t(data.user.preferred_language, 'end.before_next')}</strong> {data.farewell.carry_home}</p>}
                 {data.farewell.hook && <p style={{ ...s.paragraph, fontStyle: 'italic', color: '#5A5A55', marginTop: 20 }}>{data.farewell.hook}</p>}
               </div>
             </div>
 
             <div style={s.statsCard}>
-              <div style={s.statsTitle}>Where you stand</div>
+              <div style={s.statsTitle}>{t(data.user.preferred_language, 'end.where_you_stand')}</div>
               <div style={s.statsRow}>
                 <Stat label="Level" value={`${data.stats.level}`} sub={data.stats.level_name} />
                 <Stat label="XP" value={data.stats.xp_total.toLocaleString()} sub={data.stats.xp_to_next > 0 ? `${data.stats.xp_to_next} to L${data.stats.level + 1}` : 'Max'} />
@@ -73,13 +74,13 @@ export default function EndSession() {
             </div>
 
             <div style={s.actions}>
-              <Link href="/chat" style={s.primary}>← Keep coaching</Link>
+              <Link href="/chat" style={s.primary}>{t(data.user.preferred_language, 'end.keep_coaching')}</Link>
               {!confirming ? (
-                <button onClick={() => setConfirming(true)} style={s.ghost}>End session</button>
+                <button onClick={() => setConfirming(true)} style={s.ghost}>{t(data.user.preferred_language, 'end.end_session')}</button>
               ) : (
                 <form action="/api/auth/signout" method="GET" style={{ display: 'inline-flex', gap: 8 }}>
-                  <button type="submit" style={s.confirmDanger}>Yes, sign out</button>
-                  <button type="button" onClick={() => setConfirming(false)} style={s.ghost}>Stay</button>
+                  <button type="submit" style={s.confirmDanger}>{t(data.user.preferred_language, 'end.confirm_signout')}</button>
+                  <button type="button" onClick={() => setConfirming(false)} style={s.ghost}>{t(data.user.preferred_language, 'end.stay')}</button>
                 </form>
               )}
             </div>

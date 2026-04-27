@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Avatar from '../components/Avatar';
+import { t } from '../lib/i18n';
 
 export default function Chat() {
   const router = useRouter();
@@ -191,6 +192,28 @@ export default function Chat() {
     setPairCode('');
   }
 
+  async function toggleLanguage() {
+    const next = user?.preferred_language === 'km' ? 'en' : 'km';
+    // Optimistic UI update
+    setUser(u => ({ ...u, preferred_language: next }));
+    try {
+      const res = await fetch('/api/chat/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ preferred_language: next }),
+      });
+      const j = await res.json();
+      if (!j.ok) {
+        // Revert if save failed
+        setUser(u => ({ ...u, preferred_language: next === 'km' ? 'en' : 'km' }));
+        setError(j.error || 'Could not change language');
+      }
+    } catch {
+      setUser(u => ({ ...u, preferred_language: next === 'km' ? 'en' : 'km' }));
+      setError('Network error');
+    }
+  }
+
   async function generateCode() {
     setError(null);
     try {
@@ -237,6 +260,14 @@ export default function Chat() {
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              style={s.langPill}
+              onClick={() => toggleLanguage()}
+              title={user?.preferred_language === 'km' ? 'ប្ដូរទៅអង់គ្លេស' : 'Switch to Khmer'}
+              aria-label="Toggle language"
+            >
+              {user?.preferred_language === 'km' ? 'ខ្មែរ' : 'EN'}
+            </button>
             {voiceSupported && (
               <button
                 style={{ ...s.iconBtn, color: autoSpeak ? '#C96442' : '#7A7670' }}
@@ -387,7 +418,7 @@ export default function Chat() {
           <textarea
             ref={inputRef}
             style={s.input}
-            placeholder={recording ? 'Listening…' : 'Message your coach…'}
+            placeholder={recording ? t(user?.preferred_language, 'composer.listening') : t(user?.preferred_language, 'composer.placeholder')}
             value={draft}
             onChange={e => { setDraft(e.target.value); autoGrow(e.target); }}
             onKeyDown={e => {
@@ -514,6 +545,7 @@ const s = {
   headerNav:  { background: 'transparent', border: 'none', padding: 6, borderRadius: 8, cursor: 'pointer', fontSize: 16, lineHeight: 1, textDecoration: 'none' },
   avatarBtn:  { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '50%' },
   linkBtn:    { background: SURFACE, border: `1px solid ${BORDER}`, padding: '6px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', color: TEXT, fontWeight: 500 },
+  langPill:   { background: SURFACE, border: `1px solid ${BORDER}`, padding: '5px 11px', borderRadius: 999, fontSize: 12, cursor: 'pointer', color: ACCENT, fontWeight: 700, letterSpacing: 0.5, minWidth: 36 },
   levelPill:  { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 999, textDecoration: 'none', color: TEXT, cursor: 'pointer' },
   levelPillLevel: { fontSize: 11, fontWeight: 700, color: ACCENT, letterSpacing: 0.5 },
   levelPillBar: { width: 60, height: 6, background: '#F3F0E7', borderRadius: 999, overflow: 'hidden' },

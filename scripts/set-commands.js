@@ -16,6 +16,7 @@ const COMMANDS = [
   { command: 'practice',  description: '🎯 Open a DG Academy practice tool' },
   { command: 'web',       description: '💻 Get a code to open the web chat' },
   { command: 'link',      description: '🔗 Claim a code from the web app' },
+  { command: 'language',  description: '🌐 Switch between English / Khmer' },
   { command: 'summary',   description: '🗓 This week\'s reflection' },
   { command: 'help',      description: '❓ How to use DG AI Coach' },
   { command: 'start',     description: '🔄 Restart onboarding' },
