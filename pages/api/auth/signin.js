@@ -5,9 +5,12 @@ import {
   rotateSession,
 } from '../../../lib/user-auth.js';
 import { sessionCookie } from '../../../lib/web-session.js';
+import { rateLimit } from '../../../lib/rate-limit.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false });
+  // 10 attempts per 5 min — slows brute force, doesn't punish typos.
+  if (rateLimit(req, res, { scope: 'signin', limit: 10, windowMs: 5 * 60_000 })) return;
 
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || '');

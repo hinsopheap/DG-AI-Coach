@@ -7,17 +7,26 @@ import {
 import { getSessionId, newSessionId, sessionCookie } from '../../../lib/web-session.js';
 import { handleOnboardingMessage, isOnboarding, startOnboarding } from '../../../lib/onboarding-web.js';
 import { coachTurn } from '../../../lib/coach.js';
+import { rateLimit } from '../../../lib/rate-limit.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
 
+const MAX_MESSAGE_CHARS = 4000;
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false });
+
+  // 30 messages/min per IP. Burst-tolerant for normal chat, hostile to flooders.
+  if (rateLimit(req, res, { scope: 'chat', limit: 30, windowMs: 60_000 })) return;
 
   const text = (req.body?.text || '').toString().trim();
   const attachments = Array.isArray(req.body?.attachments) ? req.body.attachments.slice(0, 4) : [];
 
   if (!text && !attachments.length) {
     return res.status(400).json({ ok: false, error: 'Empty message' });
+  }
+  if (text.length > MAX_MESSAGE_CHARS) {
+    return res.status(413).json({ ok: false, error: `Message too long. Keep it under ${MAX_MESSAGE_CHARS} characters.` });
   }
 
   let sessionId = getSessionId(req);

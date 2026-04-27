@@ -124,7 +124,10 @@ export default function Home() {
         <footer style={s.footer}>
           <div>DG Academy · Cambodia AI Group · Phnom Penh</div>
           <div style={{ marginTop: 4, color: '#9B9690' }}>
-            Built with Next.js, Firestore, Claude ·{' '}
+            <Link href="/privacy" style={{ color: '#9B9690' }}>Privacy</Link>
+            {' · '}
+            <Link href="/terms" style={{ color: '#9B9690' }}>Terms</Link>
+            {' · '}
             <a href="https://github.com/hinsopheap/DG-AI-Coach" target="_blank" rel="noreferrer" style={{ color: '#9B9690' }}>Source on GitHub</a>
             {' · '}
             <Link href="/admin" style={{ color: '#9B9690' }}>Admin</Link>

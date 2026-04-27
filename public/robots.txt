@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /end-session
+
+Sitemap: https://dgaicoach.vercel.app/sitemap.xml

@@ -46,6 +46,12 @@ export default function SignUp() {
         <button type="submit" disabled={busy} style={{ ...s.submit, opacity: busy ? 0.5 : 1 }}>
           {busy ? 'Creating…' : 'Create account →'}
         </button>
+        <div style={{ fontSize: 11, color: '#9B9690', textAlign: 'center', lineHeight: 1.5 }}>
+          By creating an account, you agree to our{' '}
+          <Link href="/terms" style={{ color: '#9B9690', textDecoration: 'underline' }}>Terms</Link>
+          {' '}and{' '}
+          <Link href="/privacy" style={{ color: '#9B9690', textDecoration: 'underline' }}>Privacy</Link>.
+        </div>
       </form>
       <div style={s.footer}>
         Already have an account? <Link href="/signin" style={s.link}>Sign in</Link>
