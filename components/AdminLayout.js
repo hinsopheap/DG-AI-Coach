@@ -6,6 +6,7 @@ const NAV = [
   { href: '/admin/paths', label: 'Learning paths' },
   { href: '/admin/tasks', label: 'Tasks' },
   { href: '/admin/activity', label: 'Activity' },
+  { href: '/admin/errors', label: 'Errors' },
 ];
 
 export default function AdminLayout({ children, active }) {

@@ -16,6 +16,7 @@ export default function Chat() {
   const [error, setError] = useState(null);
   const [pairing, setPairing] = useState(false);
   const [pairCode, setPairCode] = useState('');
+  const [generatedCode, setGeneratedCode] = useState('');
 
   const [attachment, setAttachment] = useState(null); // { dataUrl, media_type, base64 }
   const [recording, setRecording] = useState(false);
@@ -190,6 +191,18 @@ export default function Chat() {
     setPairCode('');
   }
 
+  async function generateCode() {
+    setError(null);
+    try {
+      const res = await fetch('/api/chat/pairing-code', { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) { setError(data.error || 'Could not generate code'); return; }
+      setGeneratedCode(data.code);
+    } catch {
+      setError('Network error');
+    }
+  }
+
   return (
     <>
       <Head>
@@ -254,21 +267,53 @@ export default function Chat() {
 
         {pairing && (
           <div style={s.pairBox}>
-            <div style={{ fontSize: 13, color: '#5A5A55', marginBottom: 10, lineHeight: 1.5 }}>
-              {user?.paired_telegram
-                ? 'This account is already linked. To switch, paste a new code from /web in @dgaicoach_bot.'
-                : <>Open <a href="https://t.me/dgaicoach_bot" target="_blank" rel="noreferrer" style={s.tgLink}>@dgaicoach_bot</a> in Telegram, send <code style={s.kbd}>/web</code>, then paste the 6-character code below.</>}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                style={s.codeInput}
-                placeholder="ABC123"
-                value={pairCode}
-                onChange={e => setPairCode(e.target.value.toUpperCase().slice(0, 8))}
-                maxLength={8}
-              />
-              <button style={s.codeBtn} onClick={applyCode}>Link</button>
-            </div>
+            {user?.paired_telegram ? (
+              <div style={{ fontSize: 13, color: '#5A5A55', lineHeight: 1.5 }}>
+                ✓ Already linked to <a href="https://t.me/dgaicoach_bot" target="_blank" rel="noreferrer" style={s.tgLink}>@dgaicoach_bot</a>. Both surfaces share one history.
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#2A2925', marginBottom: 6 }}>Link this web chat with Telegram</div>
+                <div style={{ fontSize: 12, color: '#5A5A55', marginBottom: 10, lineHeight: 1.5 }}>
+                  Pick the direction that fits — both end up with one shared history.
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+                  <div style={s.linkOption}>
+                    <div style={s.linkOptionTitle}>From web → Telegram</div>
+                    {!generatedCode ? (
+                      <button style={s.linkOptionAction} onClick={generateCode}>
+                        Generate code for Telegram
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <code style={s.bigCode}>{generatedCode}</code>
+                        <span style={{ fontSize: 12, color: '#5A5A55' }}>
+                          Send <a href={`https://t.me/dgaicoach_bot?text=${encodeURIComponent(`/link ${generatedCode}`)}`} target="_blank" rel="noreferrer" style={s.tgLink}>{`/link ${generatedCode}`}</a> in @dgaicoach_bot
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={s.linkOption}>
+                    <div style={s.linkOptionTitle}>From Telegram → web</div>
+                    <div style={{ fontSize: 12, color: '#5A5A55', marginBottom: 8 }}>
+                      Send <code style={s.kbd}>/web</code> in <a href="https://t.me/dgaicoach_bot" target="_blank" rel="noreferrer" style={s.tgLink}>@dgaicoach_bot</a>, paste the code here:
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        style={s.codeInput}
+                        placeholder="ABC123"
+                        value={pairCode}
+                        onChange={e => setPairCode(e.target.value.toUpperCase().slice(0, 8))}
+                        maxLength={8}
+                      />
+                      <button style={s.codeBtn} onClick={applyCode}>Link</button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -475,6 +520,10 @@ const s = {
   levelPillFill:{ height: '100%', background: `linear-gradient(90deg, ${ACCENT}, #D97757)`, transition: 'width 0.5s' },
   levelPillXP:  { fontSize: 11, color: MUTED, fontFamily: 'ui-monospace, monospace' },
   pairBox:    { padding: 14, background: '#FFFAF0', borderBottom: `1px solid ${BORDER}` },
+  linkOption: { padding: 12, border: `1px solid ${BORDER}`, borderRadius: 10, background: SURFACE },
+  linkOptionTitle: { fontSize: 12, fontWeight: 600, color: ACCENT, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
+  linkOptionAction: { padding: '8px 14px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' },
+  bigCode:    { padding: '6px 12px', background: '#F0EEE6', borderRadius: 8, fontSize: 18, letterSpacing: 4, fontFamily: 'ui-monospace, monospace', fontWeight: 700 },
   tgLink:     { color: ACCENT, fontWeight: 500 },
   kbd:        { background: '#F0EEE6', padding: '2px 6px', borderRadius: 4, fontSize: '0.92em', fontFamily: 'ui-monospace, monospace' },
   codeInput:  { flex: 1, padding: '10px 14px', border: `1px solid ${BORDER}`, borderRadius: 10, fontSize: 14, letterSpacing: 3, textAlign: 'center', textTransform: 'uppercase', background: SURFACE, fontFamily: 'ui-monospace, monospace' },

@@ -48,6 +48,8 @@ export default function SignIn() {
       </form>
       <div style={s.footer}>
         New here? <Link href="/signup" style={s.link}>Create an account</Link>
+        {' · '}
+        <Link href="/reset" style={s.link}>Forgot password?</Link>
       </div>
     </AuthShell>
   );

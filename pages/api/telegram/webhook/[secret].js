@@ -5,6 +5,7 @@ import {
   getUserByTelegramId,
   logActivity,
   createPairingCode,
+  claimWebPairingCode,
   listRecentMessages,
   listSubmissionsForUser,
   listTasksForPath,
@@ -36,6 +37,8 @@ export default async function handler(req, res) {
   try {
     await routeUpdate(req.body);
   } catch (err) {
+    const { logError } = await import('../../../../lib/error-log.js');
+    await logError('telegram_webhook', err, { update_id: req.body?.update_id });
     console.error('[webhook] route error:', err);
   }
 }
@@ -58,6 +61,22 @@ async function routeUpdate(update) {
 
   if (text.startsWith('/start')) {
     await startOnboarding(chatId, telegramUser);
+    return;
+  }
+
+  // /link CODE works at any state — including brand-new Telegram users who
+  // signed up on web first. Handle it before onboarding gating.
+  if (/^\/link\s+\S+/.test(text)) {
+    const code = text.replace(/^\/link\s*/, '').trim().toUpperCase();
+    const merged = await claimWebPairingCode(code, telegramUser);
+    if (!merged) {
+      await sendMessage(chatId, '❌ That code is invalid or expired. Generate a fresh one in the web chat header.');
+      return;
+    }
+    await sendMessage(
+      chatId,
+      `✅ Linked.\n\nThis Telegram account and the web chat now share one history. Anything you do here shows up on your web dashboard, and vice versa.\n\nName: *${merged.full_name || 'Learner'}*\nXP: *${(merged.xp || 0).toLocaleString()}*\nStreak: *${merged.streak_count || 0}d*\n\nUse /today to get your next task.`,
+    );
     return;
   }
 
@@ -91,14 +110,9 @@ async function routeUpdate(update) {
     return handlePhoto(chatId, user, photo, caption);
   }
 
-  // Voice (placeholder until we wire a Whisper service) ---------------------
+  // Voice — transcribe via Whisper if configured, else fall back gracefully -
   if (voice) {
-    await sendMessage(
-      chatId,
-      '🎙️ I hear you — voice transcription is coming once we wire up the Whisper service. For now, please type your reply or use voice-to-text on your keyboard.',
-    );
-    await logActivity(user.id, 'voice_note_received', { duration: voice.duration });
-    return;
+    return handleVoice(chatId, user, voice);
   }
 
   if (!text) return;
@@ -173,6 +187,45 @@ function quickActionsKeyboard(user) {
 }
 
 // ── Subroutines ──────────────────────────────────────────────────────────────
+
+async function handleVoice(chatId, user, voice) {
+  const { isTranscriptionAvailable, transcribe } = await import('../../../../lib/transcription.js');
+
+  if (!isTranscriptionAvailable()) {
+    await sendMessage(
+      chatId,
+      '🎙️ I hear you — voice transcription is not enabled yet. Please type your reply, or use voice-to-text on your keyboard.',
+    );
+    await logActivity(user.id, 'voice_note_received', { duration: voice.duration, transcribed: false });
+    return;
+  }
+
+  await sendChatAction(chatId, 'typing').catch(() => {});
+  const file = await getFile(voice.file_id);
+  const filePath = file?.result?.file_path;
+  if (!filePath) {
+    await sendMessage(chatId, "I couldn't fetch that voice note. Please try again.");
+    return;
+  }
+
+  const buf = await downloadFileAsBuffer(filePath);
+  if (!buf) {
+    await sendMessage(chatId, "I couldn't download that voice note. Please try again.");
+    return;
+  }
+
+  const language = user.preferred_language === 'km' ? 'km' : 'en';
+  const text = await transcribe(buf, { mimeType: voice.mime_type || 'audio/ogg', language });
+
+  if (!text) {
+    await sendMessage(chatId, "I couldn't quite catch that. Try again, or send the message as text.");
+    await logActivity(user.id, 'voice_note_received', { duration: voice.duration, transcribed: false });
+    return;
+  }
+
+  await logActivity(user.id, 'voice_note_received', { duration: voice.duration, transcribed: true, length: text.length });
+  return runCoachTurn(chatId, user, text);
+}
 
 async function handlePhoto(chatId, user, photo, caption) {
   // Pick the largest size variant for best detail.
@@ -343,7 +396,8 @@ function helpText(user) {
 /history — show recent coaching messages
 /practice — open a DG Academy practice tool
 /summary — get your weekly reflection
-/web — open the web chat (linked to this account)
+/web — open the web chat (Telegram → web direction)
+/link CODE — claim a code from the web (web → Telegram direction)
 /help — show this message
 
 Or just chat freely — ask anything, share an attempt at a task, or send a screenshot of work in progress.`;
