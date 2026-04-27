@@ -157,6 +157,22 @@ async function runCoachTurn(chatId, user, text, attachments = []) {
   let result;
   try {
     result = await coachTurn({ user, surface: 'telegram', text, attachments });
+  } catch (err) {
+    clearInterval(typingInterval);
+    const { logError } = await import('../../../../lib/error-log.js');
+    const { friendlyAIError } = await import('../../../../lib/ai-errors.js');
+    await logError('telegram_coach_turn', err, { user_id: user.id });
+    const { message } = friendlyAIError(err);
+    if (placeholderId) {
+      const editRes = await editMessageText(chatId, placeholderId, message, quickActionsKeyboard(user));
+      if (!editRes?.ok) {
+        await sendMessage(chatId, message, quickActionsKeyboard(user));
+        await deleteMessage(chatId, placeholderId).catch(() => {});
+      }
+    } else {
+      await sendMessage(chatId, message, quickActionsKeyboard(user));
+    }
+    return;
   } finally {
     clearInterval(typingInterval);
   }

@@ -8,6 +8,8 @@ import { getSessionId, newSessionId, sessionCookie } from '../../../lib/web-sess
 import { handleOnboardingMessage, isOnboarding, startOnboarding } from '../../../lib/onboarding-web.js';
 import { coachTurn } from '../../../lib/coach.js';
 import { rateLimit } from '../../../lib/rate-limit.js';
+import { logError } from '../../../lib/error-log.js';
+import { friendlyAIError } from '../../../lib/ai-errors.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
 
@@ -48,7 +50,18 @@ export default async function handler(req, res) {
     });
   }
 
-  const result = await coachTurn({ user, surface: 'web', text, attachments });
+  let result;
+  try {
+    result = await coachTurn({ user, surface: 'web', text, attachments });
+  } catch (err) {
+    await logError('chat_send', err, { user_id: user.id });
+    const { message, retriable } = friendlyAIError(err);
+    return res.status(retriable ? 503 : 200).json({
+      ok:          true,
+      replies:     [message],
+      suggestions: ['Try again', 'My progress'],
+    });
+  }
 
   return res.status(200).json({
     ok:          true,
