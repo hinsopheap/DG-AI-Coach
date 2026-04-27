@@ -10,6 +10,9 @@ import {
   listSubmissionsForUser,
   listTasksForPath,
   getPath,
+  addReport,
+  getLatestAssistantMessage,
+  getLatestUserMessage,
 } from '../../../../lib/firebase.js';
 import { dashboardSnapshot, ACHIEVEMENTS } from '../../../../lib/gamification.js';
 import {
@@ -94,6 +97,10 @@ async function routeUpdate(update) {
   // Commands ----------------------------------------------------------------
   if (text === '/help')     return sendMessage(chatId, helpText(user), removeKeyboard()).then(() => {});
   if (text === '/language' || text === '/lang') return sendLanguagePicker(chatId);
+  if (text.startsWith('/report')) {
+    const reason = text.replace(/^\/report\s*/, '').trim();
+    return reportLatestReply(chatId, user, reason);
+  }
   if (text === '/today')    return deliverTaskToUser(user).then(() => {});
   if (text === '/progress') return sendMessage(chatId, await formatProgress(user)).then(() => {});
   if (text === '/practice') return sendPracticeMenu(chatId, user);
@@ -284,6 +291,23 @@ async function sendPairingCode(chatId, user, telegramUser) {
   await logActivity(user.id, 'web_pairing_code_issued');
 }
 
+async function reportLatestReply(chatId, user, reason) {
+  const last = await getLatestAssistantMessage(user.id);
+  if (!last) {
+    return sendMessage(chatId, "Nothing to report yet — I haven't sent you any reply this session.");
+  }
+  const lastUser = await getLatestUserMessage(user.id);
+  await addReport({
+    user_id:        user.id,
+    message_text:   last.text || '',
+    last_user_text: lastUser?.text || '',
+    reason,
+    surface:        'telegram',
+  });
+  await logActivity(user.id, 'reply_reported', { surface: 'telegram', reason: reason.slice(0, 100) });
+  await sendMessage(chatId, '✓ Reported. Thanks — the team will review it.');
+}
+
 async function sendLanguagePicker(chatId) {
   return sendMessage(chatId, '🌐 Pick your language.  ·  ជ្រើសរើសភាសារបស់អ្នក។', {
     reply_markup: {
@@ -436,6 +460,7 @@ function helpText(user) {
 /web — open the web chat (Telegram → web direction)
 /link CODE — claim a code from the web (web → Telegram direction)
 /language — switch between English and Khmer
+/report — flag the last reply as wrong (optional reason: /report this is incorrect)
 /help — show this message
 
 Or just chat freely — ask anything, share an attempt at a task, or send a screenshot of work in progress.`;

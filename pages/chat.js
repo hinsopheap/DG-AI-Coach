@@ -468,14 +468,68 @@ export default function Chat() {
 
 function MessageRow({ role, text, userName, userAvatar }) {
   const isUser = role === 'user';
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submitReport() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/chat/report', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ message_text: text, reason }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setReported(true);
+        setReporting(false);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div style={{ ...s.row, flexDirection: isUser ? 'row-reverse' : 'row' }}>
       <Avatar kind={isUser ? 'user' : 'coach'} size={32} name={isUser ? userName : null} src={isUser ? userAvatar : null} />
-      <div style={isUser ? s.userBubble : s.botBubble}>
-        {isUser ? (
-          <div style={{ whiteSpace: 'pre-wrap' }}>{text}</div>
-        ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{text}</ReactMarkdown>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 4, maxWidth: '85%' }}>
+        <div style={isUser ? s.userBubble : s.botBubble}>
+          {isUser ? (
+            <div style={{ whiteSpace: 'pre-wrap' }}>{text}</div>
+          ) : (
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{text}</ReactMarkdown>
+          )}
+        </div>
+
+        {!isUser && !reported && !reporting && (
+          <button onClick={() => setReporting(true)} style={s.reportLink} title="Report this reply">
+            ⚠ Report
+          </button>
+        )}
+
+        {!isUser && reporting && (
+          <div style={s.reportBox}>
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value.slice(0, 500))}
+              placeholder="What's wrong with this reply? (optional)"
+              style={s.reportInput}
+              rows={2}
+            />
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <button onClick={submitReport} disabled={busy} style={s.reportSubmit}>
+                {busy ? 'Sending…' : 'Submit'}
+              </button>
+              <button onClick={() => { setReporting(false); setReason(''); }} style={s.reportCancel}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {!isUser && reported && (
+          <div style={s.reportThanks}>✓ Reported. Thanks — the team will review.</div>
         )}
       </div>
     </div>
@@ -546,6 +600,12 @@ const s = {
   avatarBtn:  { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '50%' },
   linkBtn:    { background: SURFACE, border: `1px solid ${BORDER}`, padding: '6px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', color: TEXT, fontWeight: 500 },
   langPill:   { background: SURFACE, border: `1px solid ${BORDER}`, padding: '5px 11px', borderRadius: 999, fontSize: 12, cursor: 'pointer', color: ACCENT, fontWeight: 700, letterSpacing: 0.5, minWidth: 36 },
+  reportLink: { background: 'transparent', border: 'none', padding: '2px 6px', fontSize: 11, color: '#9B9690', cursor: 'pointer', marginLeft: 4 },
+  reportBox:  { background: '#FFF8F0', border: `1px solid #F5E1D0`, borderRadius: 10, padding: 10, marginLeft: 4, width: 'min(100%, 320px)' },
+  reportInput:{ width: '100%', padding: '8px 10px', border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box' },
+  reportSubmit:{ background: '#DC2626', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' },
+  reportCancel:{ background: 'transparent', color: '#5A5A55', border: `1px solid ${BORDER}`, padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer' },
+  reportThanks:{ fontSize: 11, color: '#059669', marginLeft: 4 },
   levelPill:  { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 999, textDecoration: 'none', color: TEXT, cursor: 'pointer' },
   levelPillLevel: { fontSize: 11, fontWeight: 700, color: ACCENT, letterSpacing: 0.5 },
   levelPillBar: { width: 60, height: 6, background: '#F3F0E7', borderRadius: 999, overflow: 'hidden' },
