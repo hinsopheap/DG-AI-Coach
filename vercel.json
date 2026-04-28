@@ -3,12 +3,17 @@
     "pages/api/telegram/webhook/[secret].js": { "maxDuration": 60 },
     "pages/api/chat/send.js": { "maxDuration": 60 },
     "pages/api/cron/daily-tasks.js": { "maxDuration": 300 },
-    "pages/api/cron/weekly-summary.js": { "maxDuration": 300 }
+    "pages/api/cron/weekly-summary.js": { "maxDuration": 300 },
+    "pages/api/cron/reengagement.js": { "maxDuration": 300 }
   },
   "crons": [
     {
       "path": "/api/cron/daily-tasks",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/reengagement",
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/weekly-summary",

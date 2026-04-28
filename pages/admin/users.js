@@ -1,23 +1,51 @@
 import { useState } from 'react';
 import AdminLayout from '../../components/AdminLayout';
 import { requireAdmin } from '../../lib/auth';
-import { listUsers, listPaths } from '../../lib/firebase';
+import { listUsers, listPaths, db } from '../../lib/firebase';
+
+async function lastActivityFor(userId) {
+  const snap = await db().collection('coach_messages').where('user_id', '==', userId).get();
+  if (snap.empty) return null;
+  let max = 0;
+  for (const d of snap.docs) {
+    const t = d.data().created_at?.toMillis?.() || 0;
+    if (t > max) max = t;
+  }
+  return max || null;
+}
+
+function daysAgo(ms) {
+  if (!ms) return null;
+  return Math.floor((Date.now() - ms) / 86400000);
+}
 
 export async function getServerSideProps({ req, res }) {
   if (!requireAdmin(req, res)) return { props: {} };
   const [users, paths] = await Promise.all([listUsers(), listPaths()]);
+
+  // Decorate each user with last activity (in days) — limited concurrency
+  // so we don't hammer Firestore on a 500-user dashboard.
+  const decorated = await Promise.all(users.map(async u => {
+    const lastMs = await lastActivityFor(u.id);
+    const reMs = u.last_reengagement_at?.toMillis?.()
+      || (u.last_reengagement_at ? new Date(u.last_reengagement_at).getTime() : null);
+    return {
+      id:                u.id,
+      full_name:         u.full_name || '',
+      role:              u.role || '',
+      status:            u.status || '',
+      streak_count:      u.streak_count || 0,
+      last_task_date:    u.last_task_date || '',
+      learning_path_id:  u.learning_path_id || '',
+      telegram_id:       u.telegram_id || '',
+      last_active_days:  daysAgo(lastMs),
+      last_reengaged_days: daysAgo(reMs),
+    };
+  }));
+
   return {
     props: {
-      users: users.map(u => ({
-        id:               u.id,
-        full_name:        u.full_name || '',
-        role:             u.role || '',
-        status:           u.status || '',
-        streak_count:     u.streak_count || 0,
-        last_task_date:   u.last_task_date || '',
-        learning_path_id: u.learning_path_id || '',
-        telegram_id:      u.telegram_id || '',
-      })),
+      users: decorated,
       paths: paths.map(p => ({ id: p.id, title: p.title })),
     },
   };
@@ -51,7 +79,9 @@ export default function Users({ users, paths }) {
               <th style={th}>Role</th>
               <th style={th}>Status</th>
               <th style={th}>Streak</th>
+              <th style={th}>Last active</th>
               <th style={th}>Last task</th>
+              <th style={th}>Re-engaged</th>
               <th style={th}>Learning path</th>
             </tr>
           </thead>
@@ -69,7 +99,13 @@ export default function Users({ users, paths }) {
                 <td style={td}>{u.role || '—'}</td>
                 <td style={td}><Status value={u.status} /></td>
                 <td style={td}>{u.streak_count}</td>
+                <td style={{ ...td, color: u.last_active_days == null ? '#999' : (u.last_active_days >= 3 ? '#c44' : (u.last_active_days >= 1 ? '#e9a100' : '#0a7')), fontWeight: 500 }}>
+                  {u.last_active_days == null ? '—' : (u.last_active_days === 0 ? 'today' : `${u.last_active_days}d ago`)}
+                </td>
                 <td style={td}>{u.last_task_date || '—'}</td>
+                <td style={{ ...td, fontSize: 12, color: '#888' }}>
+                  {u.last_reengaged_days == null ? '—' : `${u.last_reengaged_days}d ago`}
+                </td>
                 <td style={td}>
                   <select
                     value={u.learning_path_id}
@@ -85,7 +121,7 @@ export default function Users({ users, paths }) {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td style={td} colSpan={6}><em>No users yet. Share your Telegram bot link to onboard.</em></td></tr>
+              <tr><td style={td} colSpan={8}><em>No users yet. Share your Telegram bot link to onboard.</em></td></tr>
             )}
           </tbody>
         </table>
