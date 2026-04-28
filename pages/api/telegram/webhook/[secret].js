@@ -97,6 +97,7 @@ async function routeUpdate(update) {
   // Commands ----------------------------------------------------------------
   if (text === '/help')     return sendMessage(chatId, helpText(user), removeKeyboard()).then(() => {});
   if (text === '/language' || text === '/lang') return sendLanguagePicker(chatId);
+  if (text === '/topics') return sendTopics(chatId, user);
   if (text.startsWith('/report')) {
     const reason = text.replace(/^\/report\s*/, '').trim();
     return reportLatestReply(chatId, user, reason);
@@ -141,6 +142,13 @@ async function handleCallback(cb) {
   if (!user) return;
 
   if (data === '/today')    return deliverTaskToUser(user).then(() => {});
+  if (data.startsWith('topic:')) {
+    const { TOPICS, topicPrompt } = await import('../../../../lib/topics.js');
+    const topic = TOPICS.find(x => x.id === data.slice(6));
+    if (!topic) return;
+    const lang = user.preferred_language === 'km' ? 'km' : 'en';
+    return runCoachTurn(chatId, user, topicPrompt(topic, lang));
+  }
   if (data === 'lang:en' || data === 'lang:km') {
     const { updateUser } = await import('../../../../lib/firebase.js');
     const next = data === 'lang:km' ? 'km' : 'en';
@@ -308,6 +316,28 @@ async function reportLatestReply(chatId, user, reason) {
   await sendMessage(chatId, '✓ Reported. Thanks — the team will review it.');
 }
 
+async function sendTopics(chatId, user) {
+  const { topicsForLang } = await import('../../../../lib/topics.js');
+  const lang = user?.preferred_language === 'km' ? 'km' : 'en';
+  const topics = topicsForLang(lang);
+
+  const intro = lang === 'km'
+    ? '✨ ប្រធានបទដែលអ្នកអាចចាប់ផ្ដើមជាមួយខ្ញុំ៖\nចុចមួយ ដើម្បីចាប់ផ្ដើម។'
+    : '✨ Pick a topic to start with. Tap one and I will dive in.';
+
+  // Telegram inline_keyboard supports up to 100 buttons; we have 12, comfortable.
+  const rows = [];
+  for (let i = 0; i < topics.length; i += 2) {
+    const row = [topics[i], topics[i + 1]].filter(Boolean).map(t => ({
+      text:          `${t.icon} ${t.label.length > 28 ? t.label.slice(0, 26) + '…' : t.label}`,
+      callback_data: `topic:${t.id}`,
+    }));
+    rows.push(row);
+  }
+
+  return sendMessage(chatId, intro, { reply_markup: { inline_keyboard: rows } });
+}
+
 async function sendLanguagePicker(chatId) {
   return sendMessage(chatId, '🌐 Pick your language.  ·  ជ្រើសរើសភាសារបស់អ្នក។', {
     reply_markup: {
@@ -451,6 +481,7 @@ async function sendHistory(chatId, user) {
 function helpText(user) {
   const en = `*DG AI Coach — commands*
 /today — get today's lesson and task
+/topics — pick a starter topic to begin with
 /dashboard — your level, XP, streak, achievements
 /profile — view and edit your profile
 /progress — see your streak and scores
@@ -466,6 +497,7 @@ function helpText(user) {
 Or just chat freely — ask anything, share an attempt at a task, or send a screenshot of work in progress.`;
   const km = `*DG AI Coach — ពាក្យបញ្ជា*
 /today — ទទួលបានកិច្ចការថ្ងៃនេះ
+/topics — ជ្រើសប្រធានបទចាប់ផ្ដើម
 /dashboard — កម្រិត, XP, និងសមិទ្ធផល
 /profile — មើល​និង​កែ​ប្រវត្តិរូប
 /progress — មើលលទ្ធផលរបស់អ្នក

@@ -18,6 +18,8 @@ export default function Chat() {
   const [pairing, setPairing] = useState(false);
   const [pairCode, setPairCode] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
+  const [topics, setTopics] = useState([]);
+  const [topicsOpen, setTopicsOpen] = useState(false);
 
   const [attachment, setAttachment] = useState(null); // { dataUrl, media_type, base64 }
   const [recording, setRecording] = useState(false);
@@ -45,6 +47,12 @@ export default function Chat() {
         if (code) router.replace('/chat', undefined, { shallow: true });
       })
       .catch(() => setError('Network error'));
+
+    // Load topics in parallel — used for empty state and the Topics drawer
+    fetch('/api/chat/topics')
+      .then(r => r.json())
+      .then(d => { if (d.ok) setTopics(d.topics || []); })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady]);
 
@@ -278,6 +286,7 @@ export default function Chat() {
                 {autoSpeak ? '🔊' : '🔈'}
               </button>
             )}
+            <button onClick={() => setTopicsOpen(o => !o)} style={s.headerNav} title="Topics" aria-label="Topics">✨</button>
             <Link href="/dashboard" style={s.headerNav} title="Dashboard">📊</Link>
             <Link href="/profile" style={s.headerNav} title="Profile">⚙️</Link>
             <Link href="/end-session" style={s.headerNav} title="End session">👋</Link>
@@ -350,7 +359,37 @@ export default function Chat() {
 
         <div ref={scrollRef} style={s.thread}>
           {messages.length === 0 && !busy && (
-            <div style={s.empty}>Connecting…</div>
+            <div style={s.empty}>{t(user?.preferred_language, 'header.connecting')}</div>
+          )}
+
+          {/* Topic picker — show when learner is past onboarding and either
+              (a) the thread is empty, or (b) they manually opened topics */}
+          {user?.status === 'active' && (messages.length <= 2 || topicsOpen) && topics.length > 0 && (
+            <div style={s.topicsBlock}>
+              <div style={s.topicsHeader}>
+                <div style={s.topicsTitle}>
+                  {user?.preferred_language === 'km'
+                    ? '៙ ប្រធានបទដែលអ្នកអាចចាប់ផ្ដើមពិភាក្សាជាមួយខ្ញុំ'
+                    : '✨ Pick a topic to start with'}
+                </div>
+                {topicsOpen && (
+                  <button onClick={() => setTopicsOpen(false)} style={s.topicsClose} aria-label="Close topics">✕</button>
+                )}
+              </div>
+              <div style={s.topicsGrid}>
+                {topics.map(tp => (
+                  <button
+                    key={tp.id}
+                    onClick={() => { setTopicsOpen(false); send(tp.prompt); }}
+                    style={s.topicChip}
+                    disabled={busy}
+                  >
+                    <span style={s.topicIcon}>{tp.icon}</span>
+                    <span style={s.topicLabel}>{tp.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           {messages.map((m, i) => (
             <MessageRow key={i} role={m.role} text={m.text} userName={user?.full_name} userAvatar={user?.avatar_url} />
@@ -606,6 +645,14 @@ const s = {
   reportSubmit:{ background: '#DC2626', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' },
   reportCancel:{ background: 'transparent', color: '#5A5A55', border: `1px solid ${BORDER}`, padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer' },
   reportThanks:{ fontSize: 11, color: '#059669', marginLeft: 4 },
+  topicsBlock:{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 16, marginBottom: 14 },
+  topicsHeader:{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  topicsTitle:{ fontSize: 13, fontWeight: 600, color: ACCENT, letterSpacing: 0.3 },
+  topicsClose:{ background: 'transparent', border: 'none', fontSize: 14, color: '#9B9690', cursor: 'pointer', padding: 4 },
+  topicsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 },
+  topicChip:  { display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', padding: '10px 12px', background: '#FFFAF0', border: `1px solid #F5E1D0`, borderRadius: 10, cursor: 'pointer', color: TEXT, fontSize: 13, lineHeight: 1.3 },
+  topicIcon:  { fontSize: 18, lineHeight: 1, flexShrink: 0 },
+  topicLabel: { flex: 1 },
   levelPill:  { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 999, textDecoration: 'none', color: TEXT, cursor: 'pointer' },
   levelPillLevel: { fontSize: 11, fontWeight: 700, color: ACCENT, letterSpacing: 0.5 },
   levelPillBar: { width: 60, height: 6, background: '#F3F0E7', borderRadius: 999, overflow: 'hidden' },
