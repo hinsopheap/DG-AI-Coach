@@ -370,39 +370,39 @@ export default function Chat() {
           </div>
         )}
 
-        <div ref={scrollRef} style={s.thread}>
-          {messages.length === 0 && !busy && (
-            <div style={s.empty}>{t(user?.preferred_language, 'header.connecting')}</div>
-          )}
-
-          {/* Topic picker — show when learner is past onboarding and either
-              (a) the thread is empty, or (b) they manually opened topics */}
-          {user?.status === 'active' && (messages.length <= 2 || topicsOpen) && topics.length > 0 && (
-            <div style={s.topicsBlock}>
-              <div style={s.topicsHeader}>
-                <div style={s.topicsTitle}>
-                  {user?.preferred_language === 'km'
-                    ? '៙ ប្រធានបទដែលអ្នកអាចចាប់ផ្ដើមពិភាក្សាជាមួយខ្ញុំ'
-                    : '✨ Pick a topic to start with'}
-                </div>
-                {topicsOpen && (
-                  <button onClick={() => setTopicsOpen(false)} style={s.topicsClose} aria-label="Close topics">✕</button>
-                )}
+        {/* Topic picker — drawer outside the scrollable thread so it's
+            always visible when opened, no matter the scroll position.
+            Auto-shows on empty thread, can be reopened from the ✨ header
+            button or closed with ✕. */}
+        {user?.status === 'active' && (messages.length === 0 || topicsOpen) && topics.length > 0 && (
+          <div style={s.topicsDrawer}>
+            <div style={s.topicsHeader}>
+              <div style={s.topicsTitle}>
+                {user?.preferred_language === 'km'
+                  ? '✨ ប្រធានបទដែលអ្នកអាចចាប់ផ្ដើមពិភាក្សាជាមួយខ្ញុំ'
+                  : '✨ Pick a topic to start with'}
               </div>
-              <div style={s.topicsGrid}>
-                {topics.map(tp => (
-                  <button
-                    key={tp.id}
-                    onClick={() => { setTopicsOpen(false); send(tp.prompt, { topicId: tp.id }); }}
-                    style={s.topicChip}
-                    disabled={busy}
-                  >
-                    <span style={s.topicIcon}>{tp.icon}</span>
-                    <span style={s.topicLabel}>{tp.label}</span>
-                  </button>
-                ))}
-              </div>
+              <button onClick={() => setTopicsOpen(false)} style={s.topicsClose} aria-label="Close topics">✕</button>
             </div>
+            <div style={s.topicsGrid}>
+              {topics.map(tp => (
+                <button
+                  key={tp.id}
+                  onClick={() => { setTopicsOpen(false); send(tp.prompt, { topicId: tp.id }); }}
+                  style={s.topicChip}
+                  disabled={busy}
+                >
+                  <span style={s.topicIcon}>{tp.icon}</span>
+                  <span style={s.topicLabel}>{tp.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div ref={scrollRef} style={s.thread}>
+          {messages.length === 0 && !busy && !topicsOpen && (
+            <div style={s.empty}>{t(user?.preferred_language, 'header.connecting')}</div>
           )}
           {messages.map((m, i) => (
             <MessageRow key={i} role={m.role} text={m.text} userName={user?.full_name} userAvatar={user?.avatar_url} />
@@ -659,6 +659,7 @@ const s = {
   reportCancel:{ background: 'transparent', color: '#5A5A55', border: `1px solid ${BORDER}`, padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer' },
   reportThanks:{ fontSize: 11, color: '#059669', marginLeft: 4 },
   topicsBlock:{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 16, marginBottom: 14 },
+  topicsDrawer:{ background: SURFACE, borderBottom: `1px solid ${BORDER}`, padding: '14px 16px', maxHeight: '50vh', overflowY: 'auto', maxWidth: 760, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
   topicsHeader:{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   topicsTitle:{ fontSize: 13, fontWeight: 600, color: ACCENT, letterSpacing: 0.3 },
   topicsClose:{ background: 'transparent', border: 'none', fontSize: 14, color: '#9B9690', cursor: 'pointer', padding: 4 },
