@@ -50,6 +50,16 @@ export default async function handler(req, res) {
     });
   }
 
+  // Topic-aware brain: when this message came from a topic chip tap, tag
+  // the topic as an interest so future sessions reference it.
+  const topicId = String(req.body?.topic_id || '').trim();
+  if (topicId) {
+    try {
+      const { noteTopicInterest } = await import('../../../lib/topics.js');
+      await noteTopicInterest(user.id, topicId);
+    } catch {}
+  }
+
   let result;
   try {
     result = await coachTurn({ user, surface: 'web', text, attachments });

@@ -45,6 +45,18 @@ export default function Chat() {
         setMessages(d.messages || []);
         setSuggestions(d.suggestions || []);
         if (code) router.replace('/chat', undefined, { shallow: true });
+
+        // Deep-link: /chat?prompt=...&topic=... auto-sends the prompt once
+        // Only fires when the learner is past onboarding to avoid scrambling
+        // the onboarding state machine.
+        const dlPrompt = router.query.prompt;
+        const dlTopic  = router.query.topic;
+        if (dlPrompt && d.user?.status === 'active') {
+          const promptText = String(dlPrompt);
+          const topicId    = dlTopic ? String(dlTopic) : null;
+          router.replace('/chat', undefined, { shallow: true });
+          setTimeout(() => send(promptText, topicId ? { topicId } : undefined), 100);
+        }
       })
       .catch(() => setError('Network error'));
 
@@ -108,6 +120,7 @@ export default function Chat() {
     try {
       const body = { text: t };
       if (att) body.attachments = [{ media_type: att.media_type, data: att.base64 }];
+      if (opts.topicId) body.topic_id = opts.topicId;
       const res = await fetch('/api/chat/send', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -380,7 +393,7 @@ export default function Chat() {
                 {topics.map(tp => (
                   <button
                     key={tp.id}
-                    onClick={() => { setTopicsOpen(false); send(tp.prompt); }}
+                    onClick={() => { setTopicsOpen(false); send(tp.prompt, { topicId: tp.id }); }}
                     style={s.topicChip}
                     disabled={busy}
                   >

@@ -63,7 +63,36 @@ async function routeUpdate(update) {
   if (!chatId || !telegramUser) return;
 
   if (text.startsWith('/start')) {
+    // Deep-link: /start topic_<id> from a t.me/dgaicoach_bot?start=topic_<id>
+    // link. Onboard normally, then queue the topic prompt to fire after the
+    // learner reaches active state. We just acknowledge the topic for now
+    // and let onboarding complete; the topic will be served by sendTopics
+    // once they're past onboarding (or immediately if they already are).
+    const startPayload = text.replace(/^\/start\s*/, '').trim();
     await startOnboarding(chatId, telegramUser);
+
+    if (startPayload.startsWith('topic_')) {
+      const topicId = startPayload.slice(6);
+      const fresh = await getUserByTelegramId(telegramUser.id);
+      if (fresh && !isOnboarding(fresh)) {
+        // Already onboarded — fire the topic immediately
+        const { TOPICS, topicPrompt, noteTopicInterest } = await import('../../../../lib/topics.js');
+        const topic = TOPICS.find(x => x.id === topicId);
+        if (topic) {
+          const lang = fresh.preferred_language === 'km' ? 'km' : 'en';
+          noteTopicInterest(fresh.id, topic.id).catch(() => {});
+          await runCoachTurn(chatId, fresh, topicPrompt(topic, lang));
+        }
+      } else if (fresh) {
+        await sendMessage(
+          chatId,
+          'I noted the topic — finish onboarding first and I will pick it up right after.',
+        );
+        // Stash for post-onboarding pickup
+        const { updateUser } = await import('../../../../lib/firebase.js');
+        await updateUser(fresh.id, { pending_topic_id: topicId });
+      }
+    }
     return;
   }
 
@@ -143,10 +172,11 @@ async function handleCallback(cb) {
 
   if (data === '/today')    return deliverTaskToUser(user).then(() => {});
   if (data.startsWith('topic:')) {
-    const { TOPICS, topicPrompt } = await import('../../../../lib/topics.js');
+    const { TOPICS, topicPrompt, noteTopicInterest } = await import('../../../../lib/topics.js');
     const topic = TOPICS.find(x => x.id === data.slice(6));
     if (!topic) return;
     const lang = user.preferred_language === 'km' ? 'km' : 'en';
+    noteTopicInterest(user.id, topic.id).catch(() => {});
     return runCoachTurn(chatId, user, topicPrompt(topic, lang));
   }
   if (data === 'lang:en' || data === 'lang:km') {
