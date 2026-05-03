@@ -17,7 +17,10 @@ export default function SignUp() {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          org_code: router.query.org ? String(router.query.org).toUpperCase() : undefined,
+        }),
       });
       const j = await res.json();
       if (!j.ok) { setErr(j.error || 'Sign up failed'); return; }
@@ -29,9 +32,16 @@ export default function SignUp() {
     }
   }
 
+  const orgCode = router.query.org ? String(router.query.org).toUpperCase() : null;
+
   return (
     <AuthShell title="Create your account" lede="Start coaching in under a minute. The coach remembers who you are between sessions.">
       <Head><title>Sign up · DG AI Coach</title></Head>
+      {orgCode && (
+        <div style={{ background: '#FFF8F0', border: '1px solid #F5E1D0', borderRadius: 10, padding: 12, marginBottom: 18, fontSize: 13, color: '#5A5A55' }}>
+          🎯 You'll join the team with code <code style={{ background: '#fff', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', fontWeight: 700, color: '#C96442' }}>{orgCode}</code> automatically after signup.
+        </div>
+      )}
       <form onSubmit={submit} style={s.form}>
         <Field label="Your name">
           <input required autoFocus maxLength={80} style={s.input} value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="e.g. Dara Chen" />

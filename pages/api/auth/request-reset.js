@@ -17,14 +17,15 @@ export default async function handler(req, res) {
   // "no Telegram linked" case, where we have to tell the user the only path
   // forward (link Telegram or email admin).
   if (result.ok) {
-    return res.status(200).json({ ok: true, message: 'Check your Telegram for a reset link.' });
+    const where = result.channel === 'email' ? 'your email' : 'your Telegram';
+    return res.status(200).json({ ok: true, message: `Check ${where} for a reset link.` });
   }
-  if (result.reason === 'no_telegram') {
+  if (result.reason === 'no_channel') {
     return res.status(400).json({
       ok: false,
-      error: "This account isn't linked to Telegram. Email sopheap.hin@gmail.com to reset, or link Telegram first by signing in and running /web in the bot.",
+      error: "We couldn't deliver a reset link — neither Telegram nor email is set up. Email sopheap.hin@gmail.com to reset manually.",
     });
   }
   // For 'no_account' return success-shaped message to avoid email enumeration
-  return res.status(200).json({ ok: true, message: 'If that email is registered and linked to Telegram, a reset link was sent.' });
+  return res.status(200).json({ ok: true, message: 'If that email is registered, a reset link was sent.' });
 }

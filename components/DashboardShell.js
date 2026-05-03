@@ -30,6 +30,7 @@ export default function DashboardShell({ user, active, children, showLevel = tru
         <nav style={s.nav}>
           <NavLink href="/chat" active={active === 'chat'}>Chat</NavLink>
           <NavLink href="/dashboard" active={active === 'dashboard'}>Dashboard</NavLink>
+          <NavLink href="/org" active={active === 'team'}>Team</NavLink>
           <NavLink href="/profile" active={active === 'profile'}>Profile</NavLink>
           <Link href="/end-session" style={{ ...s.navLink, color: '#9B9690' }}>
             End session

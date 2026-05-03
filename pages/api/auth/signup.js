@@ -56,5 +56,23 @@ export default async function handler(req, res) {
   }
 
   res.setHeader('Set-Cookie', sessionCookie(sessionId));
+
+  // Optional: join an org via ?org=CODE on signup
+  const orgCode = String(req.body?.org_code || '').trim().toUpperCase();
+  if (orgCode) {
+    try {
+      const { joinOrgByCode } = await import('../../../lib/org.js');
+      await joinOrgByCode(userId, orgCode);
+    } catch {}
+  }
+
+  // Fire-and-forget welcome email. Never blocks signup.
+  try {
+    const { sendEmail, welcomeEmail } = await import('../../../lib/email.js');
+    const baseUrl = process.env.PUBLIC_BASE_URL || `https://${req.headers.host}`;
+    const tpl = welcomeEmail({ name: fullName, baseUrl });
+    sendEmail({ to: email, ...tpl }).catch(() => {});
+  } catch {}
+
   return res.status(200).json({ ok: true, user_id: userId });
 }
